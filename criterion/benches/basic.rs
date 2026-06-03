@@ -1,3 +1,4 @@
+use std::io::Cursor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use imgref::ImgVec;
 use rgb::{Rgb, RGB8};
@@ -29,6 +30,18 @@ pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, EncodingE
     Ok(buf)
 }
 
+pub fn encode_jpeg_image(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, image::ImageError> {
+    let mut encoded_jpeg = Vec::with_capacity(img.buf().len());
+    image::codecs::jpeg::JpegEncoder::new_with_quality(Cursor::new(&mut encoded_jpeg), quality).encode(
+        bytemuck::cast_slice(img.buf()),
+        img.width() as u32,
+        img.height() as u32,
+        image::ExtendedColorType::Rgb8,
+    )?;
+
+    Ok(encoded_jpeg)
+}
+
 
 fn bench_jpeg(c: &mut Criterion) {
     let img = image::open("sample-image.png")
@@ -47,28 +60,60 @@ fn bench_jpeg(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("jpeg");
 
+    group.bench_function("encode_jpeg 100", |b| {
+        b.iter(|| encode_jpeg(&img_vec, 100));
+    });
+
+    group.bench_function("encode_jpeg_image 100", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 100));
+    });
+
     group.bench_function("encode_jpeg 99", |b| {
         b.iter(|| encode_jpeg(&img_vec, 99));
+    });
+
+    group.bench_function("encode_jpeg_image 99", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 99));
     });
 
     group.bench_function("encode_jpeg 95", |b| {
         b.iter(|| encode_jpeg(&img_vec, 95));
     });
 
+    group.bench_function("encode_jpeg_image 95", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 95));
+    });
+
     group.bench_function("encode_jpeg 90", |b| {
         b.iter(|| encode_jpeg(&img_vec, 90));
+    });
+
+    group.bench_function("encode_jpeg_image 90", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 90));
     });
 
     group.bench_function("encode_jpeg 85", |b| {
         b.iter(|| encode_jpeg(&img_vec, 85));
     });
 
+    group.bench_function("encode_jpeg_image 85", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 85));
+    });
+
     group.bench_function("encode_jpeg 70", |b| {
         b.iter(|| encode_jpeg(&img_vec, 70));
     });
 
+    group.bench_function("encode_jpeg_image 70", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 70));
+    });
+
     group.bench_function("encode_jpeg 55", |b| {
         b.iter(|| encode_jpeg(&img_vec, 55));
+    });
+
+    group.bench_function("encode_jpeg_image 55", |b| {
+        b.iter(|| encode_jpeg_image(&img_vec, 55));
     });
 
     group.finish();
