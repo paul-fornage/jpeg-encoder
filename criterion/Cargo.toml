@@ -17,6 +17,10 @@ jpeg-encoder = {path = "..", features = ["benchmark"]}
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
+bytemuck = "1.25.0"
+imgref = "1.12.1"
+rgb = "0.8.53"
+image = "0.25.10"
 
 [profile.dev]
 opt-level = 1
@@ -31,4 +35,8 @@ harness = false
 
 [[bench]]
 name = "ycbcr"
+harness = false
+
+[[bench]]
+name = "basic"
 harness = false
