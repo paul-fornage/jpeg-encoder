@@ -20,7 +20,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut input = INPUT1.clone();
             fdct(
-                black_box(&mut input),
+                black_box(&mut jpeg_encoder::AlignedBlock::new(input)),
             );
             black_box(&input);
         })

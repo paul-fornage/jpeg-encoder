@@ -54,6 +54,9 @@ pub use fdct::fdct;
 #[cfg(feature = "benchmark")]
 pub use image_buffer::RgbImage;
 
+#[cfg(feature = "benchmark")]
+pub use encoder::AlignedBlock;
+
 #[cfg(all(
     feature = "benchmark",
     feature = "simd",
