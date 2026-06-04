@@ -305,6 +305,16 @@ impl QuantizationTable {
 
         product as i16
     }
+
+    #[inline]
+    pub(crate) fn reciprocals(&self) -> &[i32; 64] {
+        &self.reciprocals
+    }
+
+    #[inline]
+    pub(crate) fn corrections(&self) -> &[i32; 64] {
+        &self.corrections
+    }
 }
 
 #[cfg(test)]

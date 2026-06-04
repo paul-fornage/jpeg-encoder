@@ -59,8 +59,24 @@ pub use image_buffer::RgbImage;
 #[cfg(feature = "benchmark")]
 pub use encoder::AlignedBlock;
 
+#[cfg(feature = "benchmark")]
+pub use quantization::QuantizationTable;
+
+#[cfg(feature = "benchmark")]
+#[inline(always)]
+pub fn quantize_block_scalar(
+    block: &AlignedBlock,
+    q_block: &mut AlignedBlock,
+    table: &QuantizationTable,
+) {
+    <encoder::DefaultOperations as encoder::Operations>::quantize_block(block, q_block, table);
+}
+
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::fdct_simd;
+
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::quantize_block_simd;
 
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::RgbImageSimd;

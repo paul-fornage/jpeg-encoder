@@ -1,9 +1,9 @@
-use std::io::Cursor;
-use std::time::Duration;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use imgref::ImgVec;
-use rgb::{Rgb, RGB8};
 use jpeg_encoder::{EncodingError, JfifWrite};
+use rgb::{Rgb, RGB8};
+use std::io::Cursor;
+use std::time::Duration;
 
 pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, EncodingError> {
     struct LocalWriter<'a> {
@@ -33,16 +33,16 @@ pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, EncodingE
 
 pub fn encode_jpeg_image(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, image::ImageError> {
     let mut encoded_jpeg = Vec::with_capacity(img.buf().len());
-    image::codecs::jpeg::JpegEncoder::new_with_quality(Cursor::new(&mut encoded_jpeg), quality).encode(
-        bytemuck::cast_slice(img.buf()),
-        img.width() as u32,
-        img.height() as u32,
-        image::ExtendedColorType::Rgb8,
-    )?;
+    image::codecs::jpeg::JpegEncoder::new_with_quality(Cursor::new(&mut encoded_jpeg), quality)
+        .encode(
+            bytemuck::cast_slice(img.buf()),
+            img.width() as u32,
+            img.height() as u32,
+            image::ExtendedColorType::Rgb8,
+        )?;
 
     Ok(encoded_jpeg)
 }
-
 
 fn bench_jpeg(c: &mut Criterion) {
     let img = image::open("sample-image.png")

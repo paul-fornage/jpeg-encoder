@@ -119,7 +119,7 @@ pub fn fdct_simd(data: &mut AlignedBlock) {
             load_col(&data.data, 7),
         ],
     );
-
+    // TODO: UNSWIZZLED TRANSPOSE
     let mut data2 = [0i32; 64];
     for (x, values) in first_pass.into_iter().enumerate() {
         for (y, value) in values.to_array().into_iter().enumerate() {
