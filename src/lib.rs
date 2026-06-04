@@ -14,8 +14,9 @@
 //!     255,255,255,
 //! ];
 //!
-//! // Create new encoder that writes to a file with maximum quality (100)
-//! let mut encoder = Encoder::new_file("some.jpeg", 100)?;
+//! // Create new encoder that writes to an in-memory buffer with maximum quality (100)
+//! let mut output = Vec::new();
+//! let encoder = Encoder::new(&mut output, 100);
 //!
 //! // Encode the data with dimension 2x2
 //! encoder.encode(&data, 2, 2, ColorType::Rgb)?;
@@ -23,7 +24,8 @@
 //! # }
 
 #![no_std]
-#![cfg_attr(not(feature = "simd"), forbid(unsafe_code))]
+#![cfg_attr(feature = "simd", feature(portable_simd))]
+#![forbid(unsafe_code)]
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -31,8 +33,6 @@ extern crate std;
 extern crate alloc;
 extern crate core;
 
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-mod avx2;
 mod encoder;
 mod error;
 mod fdct;
@@ -40,6 +40,8 @@ mod huffman;
 mod image_buffer;
 mod marker;
 mod quantization;
+#[cfg(feature = "simd")]
+mod simd;
 mod writer;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
@@ -57,19 +59,11 @@ pub use image_buffer::RgbImage;
 #[cfg(feature = "benchmark")]
 pub use encoder::AlignedBlock;
 
-#[cfg(all(
-    feature = "benchmark",
-    feature = "simd",
-    any(target_arch = "x86", target_arch = "x86_64")
-))]
-pub use avx2::fdct_avx2;
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::fdct_simd;
 
-#[cfg(all(
-    feature = "benchmark",
-    feature = "simd",
-    any(target_arch = "x86", target_arch = "x86_64")
-))]
-pub use avx2::RgbImageAVX2;
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::RgbImageSimd;
 
 #[cfg(test)]
 mod tests {

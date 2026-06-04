@@ -2,14 +2,14 @@ mod fdct;
 mod ycbcr;
 
 use crate::encoder::{AlignedBlock, Operations};
-pub use fdct::fdct_avx2;
+pub use fdct::fdct_simd;
 pub use ycbcr::*;
 
-pub(crate) struct AVX2Operations;
+pub(crate) struct SimdOperations;
 
-impl Operations for AVX2Operations {
+impl Operations for SimdOperations {
     #[inline(always)]
     fn fdct(data: &mut AlignedBlock) {
-        fdct_avx2(data);
+        fdct_simd(data);
     }
 }

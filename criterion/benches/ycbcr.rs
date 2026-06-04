@@ -81,10 +81,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
     });
 
-    #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-    group.bench_function("ycbcr avx2", |b| {
-        use jpeg_encoder::RgbImageAVX2;
-        let image_buffer = RgbImageAVX2(&data, width, height);
+    #[cfg(feature = "simd")]
+    group.bench_function("ycbcr simd", |b| {
+        use jpeg_encoder::RgbImageSimd;
+        let image_buffer = RgbImageSimd(&data, width, height);
 
         b.iter(|| {
             for y in 0..height {

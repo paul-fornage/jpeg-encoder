@@ -453,65 +453,65 @@ impl<W: JfifWrite> Encoder<W> {
             });
         }
 
-        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+        #[cfg(feature = "simd")]
         {
-            if std::is_x86_feature_detected!("avx2") {
-                use crate::avx2::*;
+            use crate::simd::*;
 
-                return match color_type {
-                    ColorType::Luma => self
-                        .encode_image_internal::<_, AVX2Operations>(GrayImage(data, width, height)),
-                    ColorType::Rgb => self.encode_image_internal::<_, AVX2Operations>(
-                        RgbImageAVX2(data, width, height),
-                    ),
-                    ColorType::Rgba => self.encode_image_internal::<_, AVX2Operations>(
-                        RgbaImageAVX2(data, width, height),
-                    ),
-                    ColorType::Bgr => self.encode_image_internal::<_, AVX2Operations>(
-                        BgrImageAVX2(data, width, height),
-                    ),
-                    ColorType::Bgra => self.encode_image_internal::<_, AVX2Operations>(
-                        BgraImageAVX2(data, width, height),
-                    ),
-                    ColorType::Ycbcr => self.encode_image_internal::<_, AVX2Operations>(
-                        YCbCrImage(data, width, height),
-                    ),
-                    ColorType::Cmyk => self
-                        .encode_image_internal::<_, AVX2Operations>(CmykImage(data, width, height)),
-                    ColorType::CmykAsYcck => self.encode_image_internal::<_, AVX2Operations>(
-                        CmykAsYcckImage(data, width, height),
-                    ),
-                    ColorType::Ycck => self
-                        .encode_image_internal::<_, AVX2Operations>(YcckImage(data, width, height)),
-                };
+            match color_type {
+                ColorType::Luma => {
+                    self.encode_image_internal::<_, SimdOperations>(GrayImage(data, width, height))
+                }
+                ColorType::Rgb => self
+                    .encode_image_internal::<_, SimdOperations>(RgbImageSimd(data, width, height)),
+                ColorType::Rgba => self
+                    .encode_image_internal::<_, SimdOperations>(RgbaImageSimd(data, width, height)),
+                ColorType::Bgr => self
+                    .encode_image_internal::<_, SimdOperations>(BgrImageSimd(data, width, height)),
+                ColorType::Bgra => self
+                    .encode_image_internal::<_, SimdOperations>(BgraImageSimd(data, width, height)),
+                ColorType::Ycbcr => {
+                    self.encode_image_internal::<_, SimdOperations>(YCbCrImage(data, width, height))
+                }
+                ColorType::Cmyk => {
+                    self.encode_image_internal::<_, SimdOperations>(CmykImage(data, width, height))
+                }
+                ColorType::CmykAsYcck => self.encode_image_internal::<_, SimdOperations>(
+                    CmykAsYcckImage(data, width, height),
+                ),
+                ColorType::Ycck => {
+                    self.encode_image_internal::<_, SimdOperations>(YcckImage(data, width, height))
+                }
             }
         }
 
-        match color_type {
-            ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
-            ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
-            ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
-            ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
-            ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
-            ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
-            ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
-            ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
-            ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
-        }
+        #[cfg(not(feature = "simd"))]
+        {
+            match color_type {
+                ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
+                ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
+                ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
+                ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
+                ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
+                ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
+                ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
+                ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
+                ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
+            }
 
-        Ok(())
+            Ok(())
+        }
     }
 
     /// Encode an image
     pub fn encode_image<I: ImageBuffer>(self, image: I) -> Result<(), EncodingError> {
-        #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+        #[cfg(feature = "simd")]
         {
-            if std::is_x86_feature_detected!("avx2") {
-                use crate::avx2::*;
-                return self.encode_image_internal::<_, AVX2Operations>(image);
-            }
+            self.encode_image_internal::<_, crate::simd::SimdOperations>(image)
         }
-        self.encode_image_internal::<_, DefaultOperations>(image)
+        #[cfg(not(feature = "simd"))]
+        {
+            self.encode_image_internal::<_, DefaultOperations>(image)
+        }
     }
 
     fn encode_image_internal<I: ImageBuffer, OP: Operations>(
@@ -1271,6 +1271,7 @@ pub(crate) trait Operations {
     }
 }
 
+#[cfg_attr(feature = "simd", allow(dead_code))]
 pub(crate) struct DefaultOperations;
 
 impl Operations for DefaultOperations {}

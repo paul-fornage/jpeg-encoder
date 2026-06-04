@@ -12,9 +12,9 @@ A JPEG encoder written in Rust featuring:
 - 1, 3 and 4 component colorspaces
 - Restart interval
 - Custom quantization tables
-- AVX2 based optimizations (Optional)
+- Portable SIMD optimizations (Optional)
 - Support for no_std + alloc
-- No `unsafe` by default (Enabling the `simd` feature adds unsafe code)
+- No unsafe code
 
 ## Example
 ```rust
@@ -37,7 +37,7 @@ encoder.encode(&data, 2, 2, ColorType::Rgb)?;
 
 ## Crate features
 - `std` (default): Enables functionality dependent on the std lib
-- `simd`: Enables SIMD optimizations (implies `std` and only AVX2 as for now)
+- `simd`: Enables portable SIMD optimizations (implies `std` and requires nightly Rust)
 
 ## Minimum Supported Version of Rust (MSRV)
 

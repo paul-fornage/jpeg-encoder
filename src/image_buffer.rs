@@ -134,6 +134,7 @@ fn get_line(data: &[u8], y: u16, width: u16, num_colors: usize) -> &[u8] {
 
 macro_rules! ycbcr_image {
     ($name:ident, $num_colors:expr, $o1:expr, $o2:expr, $o3:expr) => {
+        #[cfg_attr(feature = "simd", allow(dead_code))]
         pub struct $name<'a>(pub &'a [u8], pub u16, pub u16);
 
         impl<'a> ImageBuffer for $name<'a> {
@@ -154,7 +155,7 @@ macro_rules! ycbcr_image {
                 let line = get_line(self.0, y, self.width(), $num_colors);
 
                 // Doing the convertion in chunks allows the compiler to vectorize the code
-                // A size of 16 seems optimal for SSE and AVX capable hardware
+                // A size of 16 seems optimal for SIMD-capable hardware
                 const CHUNK_SIZE: usize = 16;
 
                 let mut y_buffer = [0; CHUNK_SIZE];

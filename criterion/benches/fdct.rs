@@ -11,30 +11,25 @@ const INPUT1: [i16; 64] = [
 ];
 
 fn criterion_benchmark(c: &mut Criterion) {
-
     let mut group = c.benchmark_group("fdct");
     group.measurement_time(Duration::from_secs(60));
     group.warm_up_time(Duration::from_secs(10));
 
     group.bench_function("default fdct", |b| {
         b.iter(|| {
-            let mut input = INPUT1.clone();
-            fdct(
-                black_box(&mut jpeg_encoder::AlignedBlock::new(input)),
-            );
+            let mut input = jpeg_encoder::AlignedBlock::new(INPUT1);
+            fdct(black_box(&mut input));
             black_box(&input);
         })
     });
 
-    #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-    group.bench_function("fdct avx2", |b| {
+    #[cfg(feature = "simd")]
+    group.bench_function("fdct simd", |b| {
         b.iter(|| {
-            use jpeg_encoder::fdct_avx2;
+            use jpeg_encoder::fdct_simd;
 
-            let mut input = INPUT1.clone();
-            fdct_avx2(
-                black_box(&mut input),
-            );
+            let mut input = jpeg_encoder::AlignedBlock::new(INPUT1);
+            fdct_simd(black_box(&mut input));
             black_box(&input);
         })
     });
