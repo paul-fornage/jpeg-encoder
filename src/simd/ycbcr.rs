@@ -1,9 +1,8 @@
 use alloc::vec::Vec;
 use std::simd::num::{SimdInt, SimdUint};
-use std::simd::{simd_swizzle, Simd};
+use std::simd::{Simd, simd_swizzle};
 
 use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
-
 
 const SIMD_BIT_WIDTH: usize = 256;
 const SIMD_BYTE_WIDTH: usize = SIMD_BIT_WIDTH / 8;
@@ -13,20 +12,23 @@ pub type SimdI32 = Simd<i32, SIMD_I32_WIDTH>;
 const CONVERT_RGB_BYTE_WIDTH: usize = SIMD_I32_WIDTH;
 pub type SimdColor = Simd<u8, CONVERT_RGB_BYTE_WIDTH>;
 
-pub struct SimdRgb{
+pub struct SimdRgb {
     pub r: SimdColor,
     pub g: SimdColor,
     pub b: SimdColor,
 }
 
-pub struct SimdYCbCr{
+pub struct SimdYCbCr {
     pub y: SimdColor,
     pub cb: SimdColor,
     pub cr: SimdColor,
 }
 
 const fn gen_swizzler<const N: usize>(chunk_idx: usize, chunk_size: usize) -> [usize; N] {
-    assert!(chunk_idx < chunk_size, "chunk_idx must be less than chunk_size");
+    assert!(
+        chunk_idx < chunk_size,
+        "chunk_idx must be less than chunk_size"
+    );
     let mut out = [0; N];
     let mut i = 0;
     while i < N {
@@ -42,11 +44,10 @@ const SWIZZLER_0_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(0, 4);
 const SWIZZLER_1_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(1, 4);
 const SWIZZLER_2_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(2, 4);
 
-
 #[inline(always)]
 fn load_rgb(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, {3*SIMD_I32_WIDTH}>::from_slice(data);
-    SimdRgb{
+    let vals = Simd::<u8, { 3 * SIMD_I32_WIDTH }>::from_slice(data);
+    SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_0_3),
         g: simd_swizzle!(vals, SWIZZLER_1_3),
         b: simd_swizzle!(vals, SWIZZLER_2_3),
@@ -55,8 +56,8 @@ fn load_rgb(data: &[u8]) -> SimdRgb {
 
 #[inline(always)]
 fn load_bgr(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, {3*SIMD_I32_WIDTH}>::from_slice(data);
-    SimdRgb{
+    let vals = Simd::<u8, { 3 * SIMD_I32_WIDTH }>::from_slice(data);
+    SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_2_3),
         g: simd_swizzle!(vals, SWIZZLER_1_3),
         b: simd_swizzle!(vals, SWIZZLER_0_3),
@@ -64,8 +65,8 @@ fn load_bgr(data: &[u8]) -> SimdRgb {
 }
 #[inline(always)]
 fn load_rgba(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, {4*SIMD_I32_WIDTH}>::from_slice(data);
-    SimdRgb{
+    let vals = Simd::<u8, { 4 * SIMD_I32_WIDTH }>::from_slice(data);
+    SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_0_4),
         g: simd_swizzle!(vals, SWIZZLER_1_4),
         b: simd_swizzle!(vals, SWIZZLER_2_4),
@@ -74,14 +75,13 @@ fn load_rgba(data: &[u8]) -> SimdRgb {
 
 #[inline(always)]
 fn load_bgra(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, {4*SIMD_I32_WIDTH}>::from_slice(data);
-    SimdRgb{
+    let vals = Simd::<u8, { 4 * SIMD_I32_WIDTH }>::from_slice(data);
+    SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_2_4),
         g: simd_swizzle!(vals, SWIZZLER_1_4),
         b: simd_swizzle!(vals, SWIZZLER_0_4),
     }
 }
-
 
 #[inline(always)]
 fn convert_rgb(rgb: SimdRgb) -> SimdYCbCr {
@@ -132,7 +132,7 @@ fn fill_buffers_simd<const NUM_COLORS: usize, const R: usize, const G: usize, co
 
     for chunk in chunks {
         let rgb = load_channels(chunk);
-        let SimdYCbCr{y, cb, cr} = convert_rgb(rgb);
+        let SimdYCbCr { y, cb, cr } = convert_rgb(rgb);
 
         extend_from_simd(y_buffer, y);
         extend_from_simd(cb_buffer, cb);
