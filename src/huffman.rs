@@ -64,9 +64,9 @@ static DEFAULT_CHROMA_AC_VALUES: [u8; 162] = [
 ];
 
 pub struct HuffmanTable {
-    lookup_table: [(u8, u16); 256],
-    length: [u8; 16],
-    values: Vec<u8>,
+    pub(crate) lookup_table: [(u8, u16); 256],
+    pub(crate) length: [u8; 16],
+    pub(crate) values: Vec<u8>,
 }
 
 impl HuffmanTable {

@@ -105,7 +105,7 @@ impl<W: std::io::Write + ?Sized> JfifWrite for W {
     }
 }
 
-pub(crate) struct JfifWriter<W: JfifWrite> {
+pub struct JfifWriter<W: JfifWrite> {
     w: W,
     bit_buffer: usize,
     free_bits: i8,

@@ -43,6 +43,8 @@ mod quantization;
 #[cfg(feature = "simd")]
 mod simd;
 mod writer;
+#[cfg(any(feature = "benchmark", test))]
+pub mod huffman_sample_data;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
@@ -59,10 +61,13 @@ pub use image_buffer::RgbImage;
 #[cfg(feature = "benchmark")]
 pub use encoder::AlignedBlock;
 
-#[cfg(feature = "benchmark")]
+#[cfg(feature = "generate-huffman-data")]
+pub use writer::JfifWriter;
+
+#[cfg(any(feature = "benchmark", test))]
 pub use quantization::QuantizationTable;
 
-#[cfg(feature = "benchmark")]
+#[cfg(feature = "generate-huffman-data")]
 pub use huffman::HuffmanTable;
 
 #[cfg(feature = "benchmark")]

@@ -13,7 +13,7 @@ members = ["."]
 simd = ["jpeg-encoder/simd"]
 
 [dependencies]
-jpeg-encoder = {path = "..", features = ["benchmark"]}
+jpeg-encoder = {path = "..", features = ["benchmark", "generate-huffman-data"]}
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
@@ -21,6 +21,8 @@ bytemuck = "1.25.0"
 imgref = "1.12.1"
 rgb = "0.8.53"
 image = "0.25.10"
+serde = {version = "1.0.228"}
+serde_json = {version = "1.0.150"}
 
 [profile.dev]
 opt-level = 1

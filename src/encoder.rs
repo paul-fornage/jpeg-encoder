@@ -18,6 +18,9 @@ use std::fs::File;
 #[cfg(feature = "std")]
 use std::path::Path;
 
+#[cfg(feature = "generate-huffman-data")]
+use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
+
 /// # Color types used in encoding
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum JpegColorType {
@@ -705,6 +708,12 @@ impl<W: JfifWrite> Encoder<W> {
         self.writer
             .write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
+        #[cfg(feature = "generate-huffman-data")]
+        let mut huffman_data_set = HuffmanSampleDataSet {
+            huffman_tables: self.huffman_tables.clone(),
+            samples: Vec::new(),
+        };
+
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
         let width = image.width();
@@ -784,7 +793,13 @@ impl<W: JfifWrite> Encoder<W> {
                                 &mut q_block,
                                 &q_tables[component.quantization_table as usize],
                             );
-
+                            #[cfg(feature = "generate-huffman-data")]
+                            huffman_data_set.samples.push(HuffmanSampleData{
+                                block: q_block.clone(),
+                                last_dc: prev_dc[i],
+                                dc_huffman_table: component.dc_huffman_table,
+                                ac_huffman_table: component.ac_huffman_table,
+                            });
                             self.writer.write_block(
                                 &q_block,
                                 prev_dc[i],
@@ -807,6 +822,9 @@ impl<W: JfifWrite> Encoder<W> {
                 }
             }
         }
+
+        #[cfg(feature = "generate-huffman-data")]
+        std::fs::write("huffman_data_set.json", serde_json::to_string(&huffman_data_set).unwrap()).unwrap();
 
         self.writer.finalize_bit_buffer()?;
 
