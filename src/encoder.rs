@@ -1226,6 +1226,7 @@ impl Encoder<BufWriter<File>> {
     }
 }
 
+// TODO: simd
 fn get_block(
     data: &[u8],
     start_x: usize,
