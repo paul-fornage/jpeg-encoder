@@ -5,7 +5,6 @@ use std::simd::{Simd, simd_swizzle};
 use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 
 const SIMD_BIT_WIDTH: usize = 256;
-const SIMD_BYTE_WIDTH: usize = SIMD_BIT_WIDTH / 8;
 const SIMD_I32_WIDTH: usize = SIMD_BIT_WIDTH / 32;
 
 pub type SimdI32 = Simd<i32, SIMD_I32_WIDTH>;
