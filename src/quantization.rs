@@ -233,6 +233,7 @@ impl QuantizationTable {
         let mut reciprocals = [0i32; 64];
         let mut corrections = [0i32; 64];
 
+        // TODO: Pre zig-zag?
         for i in 0..64 {
             let (reciprocal, correction) = compute_reciprocal(table[i].get() as u32);
 

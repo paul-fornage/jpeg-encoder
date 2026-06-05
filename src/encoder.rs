@@ -716,6 +716,9 @@ impl<W: JfifWrite> Encoder<W> {
         let buffer_width = num_cols * 8 * max_h_sampling;
         let buffer_size = buffer_width * 8 * max_v_sampling;
 
+        // contains sets of 8 rows broken down by component.
+        // when subsampling factor for a components is greater than 1,
+        //  this actually contains the next 8*subsampling
         let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
 
         let mut prev_dc = [0i16; 4];
@@ -724,17 +727,21 @@ impl<W: JfifWrite> Encoder<W> {
         let mut restarts = 0;
         let mut restarts_to_go = restart_interval;
 
-        for block_y in 0..num_rows {
+        for block_y_index in 0..num_rows {
             for r in &mut row {
                 r.clear();
             }
 
-            for y in 0..(8 * max_v_sampling) {
-                let y = y + block_y * 8 * max_v_sampling;
-                let y = (y.min(height as usize - 1)) as u16;
+            for inter_block_y in 0..(8 * max_v_sampling) {
+                let global_y = inter_block_y + block_y_index * 8 * max_v_sampling;
 
-                image.fill_buffers(y, &mut row);
+                // TODO: If out of bounds simply do not change buffer. (rare case but easy win)
+                let global_y = (global_y.min(height as usize - 1)) as u16;
 
+                // fill the rows
+                image.fill_buffers(global_y, &mut row);
+
+                // pad out the rows
                 for _ in usize::from(width)..buffer_width {
                     for channel in &mut row {
                         if !channel.is_empty() {
