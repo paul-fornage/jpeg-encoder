@@ -31,7 +31,7 @@ pub fn quantize_block_simd(
 ) {
     let reciprocals = table.reciprocals();
     let corrections = table.corrections();
-    
+
     let data: &mut [i16; BLOCK_SIZE] = &mut q_block.data;
     let chunks = data.chunks_exact_mut(SIMD_I32_WIDTH);
     assert_eq!(SIMD_PER_QUANT * SIMD_I32_WIDTH, BLOCK_SIZE, "Block data must be a multiple of SIMD_I32_WIDTH");
@@ -45,15 +45,9 @@ pub fn quantize_block_simd(
             i32::from(block.data[z])
         }));
 
-        let reciprocal = SimdI32::from_array(core::array::from_fn(|lane| {
-            let z = zigzag_index(base + lane);
-            reciprocals[z]
-        }));
+        let reciprocal = SimdI32::from_slice(reciprocals[base..base+SIMD_I32_WIDTH].into());
 
-        let correction = SimdI32::from_array(core::array::from_fn(|lane| {
-            let z = zigzag_index(base + lane);
-            corrections[z]
-        }));
+        let correction = SimdI32::from_slice(corrections[base..base+SIMD_I32_WIDTH].into());
 
         let mut product = (values.abs() + correction) * reciprocal;
         product >>= SimdI32::splat(SHIFT);
@@ -63,6 +57,9 @@ pub fn quantize_block_simd(
         result.cast::<i16>().copy_to_slice(out_chunk);
     }
 }
+
+// before dev machine: quantize/quantize simd  time:   [128.01 µs 128.21 µs 128.43 µs]
+// after dev machine: quantize/quantize simd  time:   [109.01 µs 109.14 µs 109.31 µs]
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,6 @@
 use alloc::boxed::Box;
 use core::num::NonZeroU16;
+use crate::writer::ZIGZAG;
 
 /// # Quantization table used for encoding
 ///
@@ -237,8 +238,8 @@ impl QuantizationTable {
         for i in 0..64 {
             let (reciprocal, correction) = compute_reciprocal(table[i].get() as u32);
 
-            reciprocals[i] = reciprocal;
-            corrections[i] = correction;
+            reciprocals[ZIGZAG[i] as usize] = reciprocal;
+            corrections[ZIGZAG[i] as usize] = correction;
         }
 
         QuantizationTable {
@@ -289,6 +290,7 @@ impl QuantizationTable {
     }
 
     #[inline]
+    /// PRE ZIG ZAG IDX!!
     pub fn quantize(&self, in_value: i16, index: usize) -> i16 {
         let value = in_value as i32;
 
@@ -308,11 +310,13 @@ impl QuantizationTable {
     }
 
     #[inline]
+    /// PRE ZIG-ZAGGED
     pub(crate) fn reciprocals(&self) -> &[i32; 64] {
         &self.reciprocals
     }
 
     #[inline]
+    /// PRE ZIG-ZAGGED
     pub(crate) fn corrections(&self) -> &[i32; 64] {
         &self.corrections
     }

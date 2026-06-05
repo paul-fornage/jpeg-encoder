@@ -1273,7 +1273,7 @@ pub(crate) trait Operations {
     fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable) {
         for i in 0..64 {
             let z = ZIGZAG[i] as usize & 0x3f;
-            q_block.data[i] = table.quantize(block.data[z], z);
+            q_block.data[i] = table.quantize(block.data[z], i);
         }
     }
 }
