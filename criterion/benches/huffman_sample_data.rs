@@ -1,6 +1,6 @@
 use jpeg_encoder::{AlignedBlock, HuffmanTable};
 
-pub struct HuffmanSampleDataSet{
+pub struct HuffmanSampleDataSet {
     huffman_tables: [(HuffmanTable, HuffmanTable); 2],
     samples: Vec<HuffmanSampleData>,
 }
@@ -8,6 +8,7 @@ pub struct HuffmanSampleDataSet{
 pub struct HuffmanSampleData{
     block: AlignedBlock,
     last_dc: i16,
-    table_id: u8,
+    dc_huffman_table: u8,
+    ac_huffman_table: u8,
 }
 
