@@ -117,3 +117,75 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::huffman_sample_data::HuffmanSampleDataSet;
+    use alloc::vec::Vec;
+
+    const START: usize = 1;
+    const END: usize = 64;
+    const PREFIX_BITS: (u32, u8) = (0b101, 3);
+    const FLUSH_BITS: (u32, u8) = (0xA5, 8);
+
+    struct LocalWriter<'a> {
+        buf: &'a mut Vec<u8>,
+    }
+
+    impl<'a> JfifWrite for LocalWriter<'a> {
+        fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
+            self.buf.extend_from_slice(buf);
+            Ok(())
+        }
+    }
+
+    fn write_og(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
+        let mut out = Vec::new();
+        {
+            let local_writer = LocalWriter { buf: &mut out };
+            let mut writer = JfifWriter::new(local_writer);
+
+            writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
+            writer.write_ac_block_og(block, START, END, table)?;
+            writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
+            writer.flush_bit_buffer()?;
+        }
+        Ok(out)
+    }
+
+    fn write_tweaked(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
+        let mut out = Vec::new();
+        {
+            let local_writer = LocalWriter { buf: &mut out };
+            let mut writer = JfifWriter::new(local_writer);
+
+            writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
+            writer.write_ac_block_tweaked(block, START, END, table)?;
+            writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
+            writer.flush_bit_buffer()?;
+        }
+        Ok(out)
+    }
+
+    #[test]
+    fn simd_tweaked_ac_writer_matches_original_for_captured_samples() {
+        let samples_string = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/criterion/huffman_data_set.json"
+        ));
+        let sample_set: HuffmanSampleDataSet = serde_json::from_str(samples_string).unwrap();
+
+        for (idx, sample) in sample_set.samples.iter().enumerate() {
+            let ac_table = &sample_set.huffman_tables[sample.ac_huffman_table as usize].1;
+            let og = write_og(&sample.block, ac_table).unwrap();
+            let tweaked = write_tweaked(&sample.block, ac_table).unwrap();
+
+            assert_eq!(
+                og, tweaked,
+                "Mismatch at sample {idx} with ac table {}",
+                sample.ac_huffman_table
+            );
+        }
+    }
+}

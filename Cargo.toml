@@ -27,6 +27,8 @@ image = {version = "0.25.10", optional = true}
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.150" }
 
 [profile.dev]
 opt-level = 1
