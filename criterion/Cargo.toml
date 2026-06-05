@@ -44,3 +44,7 @@ harness = false
 [[bench]]
 name = "quantize"
 harness = false
+
+[[bench]]
+name = "huffman"
+harness = false

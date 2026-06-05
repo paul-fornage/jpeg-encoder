@@ -63,6 +63,9 @@ pub use encoder::AlignedBlock;
 pub use quantization::QuantizationTable;
 
 #[cfg(feature = "benchmark")]
+pub use huffman::HuffmanTable;
+
+#[cfg(feature = "benchmark")]
 #[inline(always)]
 pub fn quantize_block_scalar(
     block: &AlignedBlock,
