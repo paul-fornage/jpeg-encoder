@@ -1,6 +1,8 @@
+use std::eprintln;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::Simd;
-use crate::{AlignedBlock, EncodingError, JfifWrite};
+use crate::encoder::AlignedBlock;
+use crate::{EncodingError, JfifWrite};
 use crate::huffman::HuffmanTable;
 use crate::writer::{get_code, JfifWriter};
 impl<W: JfifWrite> JfifWriter<W> {
@@ -89,15 +91,16 @@ impl<W: JfifWrite> JfifWriter<W> {
             let simd_values = SimdI16::from_slice(chunk);
             let non_zero = simd_values.simd_ne(SimdI16::splat(0));
             let mut checked_vals: u8 = 0;
-            assert_eq!(SIMD_I16_WIDTH, size_of::<u16>(), "SIMD_I16_WIDTH must match size of u16 for bitmask conversion");
+            assert_eq!(SIMD_I16_WIDTH, size_of::<u16>()*8, "SIMD_I16_WIDTH must match size of u16 for bitmask conversion");
             let mut non_zeros_bitmask = non_zero.to_bitmask() as u16;
             if non_zeros_bitmask == 0 {
                 self.huffman_encode(0xF0, ac_table)?;
                 continue 'chunk_loop;
             }
+            eprintln!("non_zeros_bitmask: {:016b}", non_zeros_bitmask);
             'vals_loop: while non_zeros_bitmask != 0 {
-                let leading_zeros = non_zeros_bitmask.leading_zeros() as u8 - checked_vals;
-                zero_run += leading_zeros;
+                let leading_zeros = non_zeros_bitmask.leading_zeros() as u8;
+                zero_run += leading_zeros - checked_vals;
                 if zero_run >= 16 {
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
@@ -106,8 +109,11 @@ impl<W: JfifWrite> JfifWriter<W> {
                 self.write_val_with_preceding_zeros(next_val, zero_run, ac_table)?;
                 zero_run = 0;
                 checked_vals = leading_zeros;
-                non_zeros_bitmask &= !(1 << leading_zeros);
+                eprintln!("leading_zeros: {leading_zeros} before non_zeros_bitmask: {non_zeros_bitmask:016b}");
+                non_zeros_bitmask &= !((1<<15) >> leading_zeros);
+                eprintln!("leading_zeros: {leading_zeros} non_zeros_bitmask: {non_zeros_bitmask:016b}");
             }
+            eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
         }
 
         if zero_run > 0 {

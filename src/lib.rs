@@ -58,7 +58,7 @@ pub use fdct::fdct;
 #[cfg(feature = "benchmark")]
 pub use image_buffer::RgbImage;
 
-#[cfg(feature = "benchmark")]
+#[cfg(any(feature = "benchmark", test))]
 pub use encoder::AlignedBlock;
 
 #[cfg(feature = "generate-huffman-data")]
