@@ -167,41 +167,35 @@ jpeg/encode_jpeg_image 55
 Found 2 outliers among 100 measurements (2.00%)
   2 (2.00%) high mild
 
-7950X3D results: !! (No simd)
+7950X3D results: !! (79591de5)
 
-jpeg/encode_jpeg 100    time:   [26.369 ms 26.759 ms 27.219 ms]
-
+jpeg/encode_jpeg 100    time:   [8.0174 ms 8.0235 ms 8.0301 ms]
 jpeg/encode_jpeg_image 100
-                        time:   [8.8544 ms 8.8668 ms 8.8815 ms]
+                        time:   [9.1579 ms 9.1672 ms 9.1772 ms]
 
-jpeg/encode_jpeg 99     time:   [29.321 ms 31.198 ms 33.167 ms]
-
+jpeg/encode_jpeg 99     time:   [6.9098 ms 6.9138 ms 6.9181 ms]
 jpeg/encode_jpeg_image 99
-                        time:   [8.8488 ms 8.8574 ms 8.8666 ms]
+                        time:   [9.1303 ms 9.1392 ms 9.1485 ms]
 
-jpeg/encode_jpeg 95     time:   [21.220 ms 21.268 ms 21.322 ms]
-
+jpeg/encode_jpeg 95     time:   [5.7708 ms 5.7752 ms 5.7803 ms]
 jpeg/encode_jpeg_image 95
-                        time:   [8.0361 ms 8.0444 ms 8.0549 ms]
+                        time:   [8.3462 ms 8.3537 ms 8.3617 ms]
 
-jpeg/encode_jpeg 90     time:   [20.439 ms 20.483 ms 20.531 ms]
-
+jpeg/encode_jpeg 90     time:   [5.5052 ms 5.5108 ms 5.5163 ms]
 jpeg/encode_jpeg_image 90
-                        time:   [7.4702 ms 7.4755 ms 7.4821 ms]
+                        time:   [7.8111 ms 7.8218 ms 7.8336 ms]
 
-jpeg/encode_jpeg 85     time:   [20.099 ms 20.145 ms 20.195 ms]
-
+jpeg/encode_jpeg 85     time:   [5.4037 ms 5.4066 ms 5.4097 ms]
 jpeg/encode_jpeg_image 85
-                        time:   [7.2979 ms 7.3030 ms 7.3086 ms]
+                        time:   [7.6454 ms 7.6518 ms 7.6591 ms]
 
-jpeg/encode_jpeg 70     time:   [19.556 ms 19.592 ms 19.632 ms]
-
+jpeg/encode_jpeg 70     time:   [5.2347 ms 5.2443 ms 5.2553 ms]
 jpeg/encode_jpeg_image 70
-                        time:   [7.0255 ms 7.0341 ms 7.0439 ms]
+                        time:   [7.3613 ms 7.3688 ms 7.3766 ms]
 
-jpeg/encode_jpeg 55     time:   [19.430 ms 19.498 ms 19.580 ms]
-
+jpeg/encode_jpeg 55     time:   [5.1618 ms 5.1684 ms 5.1752 ms]
 jpeg/encode_jpeg_image 55
-                        time:   [6.8735 ms 6.8832 ms 6.8945 ms]
+                        time:   [7.2556 ms 7.2660 ms 7.2776 ms]
+
 
 */
