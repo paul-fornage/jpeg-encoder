@@ -1,6 +1,6 @@
+use crate::writer::ZIGZAG;
 use alloc::boxed::Box;
 use core::num::NonZeroU16;
-use crate::writer::ZIGZAG;
 
 /// # Quantization table used for encoding
 ///

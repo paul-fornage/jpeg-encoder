@@ -7,7 +7,6 @@ use crate::encoder::AlignedBlock;
 use crate::quantization::QuantizationTable;
 use crate::writer::ZIGZAG;
 
-
 const BLOCK_SIZE: usize = 64;
 const SHIFT: i32 = 2 * 8 - 1;
 const SIMD_BIT_WIDTH: usize = 256;
@@ -22,7 +21,6 @@ const fn zigzag_index(index: usize) -> usize {
 
 const SIMD_PER_QUANT: usize = BLOCK_SIZE / SIMD_I32_WIDTH;
 
-
 #[inline(always)]
 pub fn quantize_block_simd(
     block: &AlignedBlock,
@@ -34,8 +32,16 @@ pub fn quantize_block_simd(
 
     let data: &mut [i16; BLOCK_SIZE] = &mut q_block.data;
     let chunks = data.chunks_exact_mut(SIMD_I32_WIDTH);
-    assert_eq!(SIMD_PER_QUANT * SIMD_I32_WIDTH, BLOCK_SIZE, "Block data must be a multiple of SIMD_I32_WIDTH");
-    assert_eq!(chunks.len(), SIMD_PER_QUANT, "Block data must be a multiple of SIMD_I32_WIDTH");
+    assert_eq!(
+        SIMD_PER_QUANT * SIMD_I32_WIDTH,
+        BLOCK_SIZE,
+        "Block data must be a multiple of SIMD_I32_WIDTH"
+    );
+    assert_eq!(
+        chunks.len(),
+        SIMD_PER_QUANT,
+        "Block data must be a multiple of SIMD_I32_WIDTH"
+    );
 
     for (chunk_idx, out_chunk) in chunks.enumerate() {
         let base = chunk_idx * SIMD_I32_WIDTH;
@@ -45,9 +51,9 @@ pub fn quantize_block_simd(
             i32::from(block.data[z])
         }));
 
-        let reciprocal = SimdI32::from_slice(reciprocals[base..base+SIMD_I32_WIDTH].into());
+        let reciprocal = SimdI32::from_slice(reciprocals[base..base + SIMD_I32_WIDTH].into());
 
-        let correction = SimdI32::from_slice(corrections[base..base+SIMD_I32_WIDTH].into());
+        let correction = SimdI32::from_slice(corrections[base..base + SIMD_I32_WIDTH].into());
 
         let mut product = (values.abs() + correction) * reciprocal;
         product >>= SimdI32::splat(SHIFT);

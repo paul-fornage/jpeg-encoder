@@ -794,7 +794,7 @@ impl<W: JfifWrite> Encoder<W> {
                                 &q_tables[component.quantization_table as usize],
                             );
                             #[cfg(feature = "generate-huffman-data")]
-                            huffman_data_set.samples.push(HuffmanSampleData{
+                            huffman_data_set.samples.push(HuffmanSampleData {
                                 block: q_block.clone(),
                                 last_dc: prev_dc[i],
                                 dc_huffman_table: component.dc_huffman_table,
@@ -824,7 +824,11 @@ impl<W: JfifWrite> Encoder<W> {
         }
 
         #[cfg(feature = "generate-huffman-data")]
-        std::fs::write("huffman_data_set.json", serde_json::to_string(&huffman_data_set).unwrap()).unwrap();
+        std::fs::write(
+            "huffman_data_set.json",
+            serde_json::to_string(&huffman_data_set).unwrap(),
+        )
+        .unwrap();
 
         self.writer.finalize_bit_buffer()?;
 

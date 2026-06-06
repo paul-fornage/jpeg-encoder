@@ -353,7 +353,6 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(())
     }
 
-
     pub fn write_ac_block(
         &mut self,
         block: &AlignedBlock,

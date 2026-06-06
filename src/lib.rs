@@ -37,14 +37,14 @@ mod encoder;
 mod error;
 mod fdct;
 mod huffman;
+#[cfg(any(feature = "benchmark", test))]
+pub mod huffman_sample_data;
 mod image_buffer;
 mod marker;
 mod quantization;
 #[cfg(feature = "simd")]
 mod simd;
 mod writer;
-#[cfg(any(feature = "benchmark", test))]
-pub mod huffman_sample_data;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
@@ -99,7 +99,7 @@ mod tests {
     use alloc::vec;
     use alloc::vec::Vec;
 
-    fn create_test_img_rgb() -> (Vec<u8>, u16, u16) {
+    pub fn create_test_img_rgb() -> (Vec<u8>, u16, u16) {
         // Ensure size which which ensures an odd MCU count per row to test chroma subsampling
         let width = 258;
         let height = 128;

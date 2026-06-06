@@ -1,7 +1,7 @@
 mod fdct;
+mod huffman;
 mod quantize;
 mod ycbcr;
-mod huffman;
 
 use crate::encoder::{AlignedBlock, Operations};
 use crate::quantization::QuantizationTable;
