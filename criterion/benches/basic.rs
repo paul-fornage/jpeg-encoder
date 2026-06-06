@@ -167,7 +167,7 @@ jpeg/encode_jpeg_image 55
 Found 2 outliers among 100 measurements (2.00%)
   2 (2.00%) high mild
 
-7950X3D results: !! (79591de5) same as 87d7b53c WAY WORSE ON d5600505!!! NO SIMD!
+7950X3D results: no simd
 
 jpeg/encode_jpeg 100    time:   [8.0174 ms 8.0235 ms 8.0301 ms]
 jpeg/encode_jpeg_image 100

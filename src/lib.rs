@@ -61,7 +61,7 @@ pub use image_buffer::RgbImage;
 #[cfg(any(feature = "benchmark", test))]
 pub use encoder::AlignedBlock;
 
-#[cfg(feature = "generate-huffman-data")]
+#[cfg(any(feature = "generate-huffman-data", feature = "benchmark"))]
 pub use writer::JfifWriter;
 
 #[cfg(any(feature = "benchmark", test))]

@@ -13,7 +13,7 @@ members = ["."]
 simd = ["jpeg-encoder/simd"]
 
 [dependencies]
-jpeg-encoder = {path = "..", features = ["benchmark", "generate-huffman-data"]}
+jpeg-encoder = {path = "..", features = ["benchmark"]}
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["plotters", "cargo_bench_support"]}
