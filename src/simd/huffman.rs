@@ -19,7 +19,7 @@ impl<W: JfifWrite> JfifWriter<W> {
             if value == 0 {
                 zero_run += 1;
             } else {
-                // eprintln!("[new]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)");
+                // std::eprintln!("\x1b[1m[new]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)\x1b[0m");
                 self.write_val_with_preceding_zeros(value, zero_run, ac_table)?;
                 zero_run = 0;
             }
@@ -27,17 +27,6 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(zero_run)
     }
 
-    #[inline]
-    pub fn write_val_with_preceding_zeros(
-        &mut self,
-        value: i16,
-        preceding_zeros: u8,
-        ac_table: &HuffmanTable,
-    ) -> Result<(), EncodingError> {
-        let (size, value) = get_code(value);
-        let symbol = (preceding_zeros << 4) | size;
-        self.huffman_encode_value(size, symbol, value, ac_table)
-    }
 
     pub fn write_ac_block_simd(
         &mut self,
@@ -64,7 +53,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         );
         let chunks = block.data[INITIAL_LINEAR..BLOCK_SIZE].chunks_exact(SIMD_I16_WIDTH);
         'chunk_loop: for chunk in chunks.into_iter() {
-            // eprintln!("chunk: {:?}", chunk);
+            // std::eprintln!("chunk: {:?}", chunk);
             let simd_values = SimdI16::from_slice(chunk);
             let non_zero = simd_values.simd_ne(SimdI16::splat(0));
             let mut checked_vals: u8 = 0;
@@ -80,32 +69,32 @@ impl<W: JfifWrite> JfifWriter<W> {
             }
 
             while non_zeros_bitmask != 0 {
-                // eprintln!("start loop non_zeros_bitmask: {non_zeros_bitmask:016b}");
+                // std::eprintln!("start loop non_zeros_bitmask: {non_zeros_bitmask:016b}");
                 let leading_zeros = non_zeros_bitmask.leading_zeros() as u8;
-                // eprintln!("leading_zeros: {leading_zeros}");
+                // std::eprintln!("leading_zeros: {leading_zeros}");
                 zero_run += leading_zeros - checked_vals;
-                // eprintln!("zero_run: {zero_run}");
-                if zero_run >= 16 {
-                    // eprintln!("[new]: huffman_encode(0xF0, ac_table)");
+                // std::eprintln!("zero_run: {zero_run}");
+                while zero_run >= 16 {
+                    // std::eprintln!("\x1b[1m[new]: huffman_encode(0xF0, ac_table)\x1b[0m");
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
                 }
                 let next_val = chunk[leading_zeros as usize];
-                // eprintln!("next_val: {next_val}");
-                // eprintln!("[new]: write_val_with_preceding_zeros({next_val}, {zero_run}, ac_table)");
+                // std::eprintln!("next_val: {next_val}");
+                // std::eprintln!("\x1b[1m[new]: write_val_with_preceding_zeros({next_val}, {zero_run}, ac_table)\x1b[0m");
                 self.write_val_with_preceding_zeros(next_val, zero_run, ac_table)?;
                 zero_run = 0;
                 checked_vals = leading_zeros + 1;
-                // eprintln!("checked_vals: {checked_vals}");
+                // std::eprintln!("checked_vals: {checked_vals}");
                 non_zeros_bitmask &= !((1 << 15) >> leading_zeros);
-                // eprintln!("leading_zeros: {leading_zeros}, new non_zeros_bitmask: {non_zeros_bitmask:016b}");
+                // std::eprintln!("leading_zeros: {leading_zeros}, new non_zeros_bitmask: {non_zeros_bitmask:016b}");
             }
             zero_run = 16 - checked_vals;
-            // eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
+            // std::eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
         }
 
         if zero_run > 0 {
-            // eprintln!("[new]: huffman_encode(0x00, ac_table)");
+            // std::eprintln!("\x1b[1m[new]: huffman_encode(0x00, ac_table)\x1b[0m");
             self.huffman_encode(0x00, ac_table)?;
         }
 
@@ -184,7 +173,7 @@ mod tests {
             let mut writer = JfifWriter::new(local_writer);
 
             writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
-            writer.write_ac_block(block, START, END, table)?;
+            writer.write_ac_block_linear(block, START, END, table)?;
             writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
             writer.flush_bit_buffer()?;
         }

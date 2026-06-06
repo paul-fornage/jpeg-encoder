@@ -367,6 +367,18 @@ impl<W: JfifWrite> JfifWriter<W> {
         return self.write_ac_block_simd(block, start, end, ac_table);
     }
 
+    #[inline]
+    pub fn write_val_with_preceding_zeros(
+        &mut self,
+        value: i16,
+        preceding_zeros: u8,
+        ac_table: &HuffmanTable,
+    ) -> Result<(), EncodingError> {
+        let (size, value) = get_code(value);
+        let symbol = (preceding_zeros << 4) | size;
+        self.huffman_encode_value(size, symbol, value, ac_table)
+    }
+
     pub fn write_ac_block_linear(
         &mut self,
         block: &AlignedBlock,
@@ -381,20 +393,20 @@ impl<W: JfifWrite> JfifWriter<W> {
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
+                    // std::eprintln!("\x1b[1m[original]: huffman_encode(0xF0, ac_table)\x1b[0m");
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
                 }
 
-                let (size, value) = get_code(value);
-                let symbol = (zero_run << 4) | size;
-
-                self.huffman_encode_value(size, symbol, value, ac_table)?;
+                // std::eprintln!("\x1b[1m[original]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)\x1b[0m");
+                self.write_val_with_preceding_zeros(value, zero_run as u8, ac_table)?;
 
                 zero_run = 0;
             }
         }
 
         if zero_run > 0 {
+            // std::eprintln!("\x1b[1m[original]: huffman_encode(0x00, ac_table)\x1b[0m");
             self.huffman_encode(0x00, ac_table)?;
         }
 

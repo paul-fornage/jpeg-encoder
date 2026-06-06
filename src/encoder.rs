@@ -979,7 +979,8 @@ impl<W: JfifWrite> Encoder<W> {
                             .write_marker(Marker::RST((restarts % 8) as u8))?;
                     }
 
-                    self.writer.write_ac_block(
+                    // TODO: switch to `write_ac_block` to allow for simd once I understand why there are multiple chunks.
+                    self.writer.write_ac_block_linear(
                         block,
                         start,
                         end,
