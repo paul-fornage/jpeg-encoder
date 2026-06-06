@@ -77,7 +77,7 @@ impl PartialEq for AlignedBlock {
 // #[cfg(test)]
 impl Debug for AlignedBlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "AlignedBlock {{ data: {:?} }}", self.data)
+        write!(f, "AlignedBlock {{\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n}}", &self.data[0..8], &self.data[8..16], &self.data[16..24], &self.data[24..32], &self.data[32..40], &self.data[40..48], &self.data[48..56], &self.data[56..64])
     }
 }
 
