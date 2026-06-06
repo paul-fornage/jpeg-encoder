@@ -1003,6 +1003,7 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
+    // TODO: simd
     fn encode_blocks<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: &I,
