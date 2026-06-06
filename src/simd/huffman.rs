@@ -7,39 +7,6 @@ use crate::huffman::HuffmanTable;
 use crate::writer::{get_code, JfifWriter};
 impl<W: JfifWrite> JfifWriter<W> {
 
-    pub fn write_ac_block_og(
-        &mut self,
-        block: &AlignedBlock,
-        start: usize,
-        end: usize,
-        ac_table: &HuffmanTable,
-    ) -> Result<(), EncodingError> {
-        let mut zero_run = 0;
-
-        for &value in &block.data[start..end] {
-            if value == 0 {
-                zero_run += 1;
-            } else {
-                while zero_run > 15 {
-                    // eprintln!("[original]: huffman_encode(0xF0, ac_table)");
-                    self.huffman_encode(0xF0, ac_table)?;
-                    zero_run -= 16;
-                }
-                // eprintln!("[original]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)");
-                self.write_val_with_preceding_zeros(value, zero_run, ac_table)?;
-
-                zero_run = 0;
-            }
-        }
-
-        if zero_run > 0 {
-            // eprintln!("[original]: huffman_encode(0x00, ac_table)");
-            self.huffman_encode(0x00, ac_table)?;
-        }
-
-        Ok(())
-    }
-
     pub fn write_ac_block_finish_first_n<const N: usize>(
         &mut self,
         block: &AlignedBlock,
@@ -66,7 +33,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         self.huffman_encode_value(size, symbol, value, ac_table)
     }
 
-    pub fn write_ac_block_tweaked(
+    pub fn write_ac_block_simd(
         &mut self,
         block: &AlignedBlock,
         start: usize,
@@ -104,7 +71,7 @@ impl<W: JfifWrite> JfifWriter<W> {
                 zero_run += leading_zeros - checked_vals;
                 // eprintln!("zero_run: {zero_run}");
                 if zero_run >= 16 {
-                    eprintln!("[new]: huffman_encode(0xF0, ac_table)");
+                    // eprintln!("[new]: huffman_encode(0xF0, ac_table)");
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
                 }
@@ -160,21 +127,21 @@ mod tests {
             let mut writer = JfifWriter::new(local_writer);
 
             writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
-            writer.write_ac_block_og(block, START, END, table)?;
+            writer.write_ac_block(block, START, END, table)?;
             writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
             writer.flush_bit_buffer()?;
         }
         Ok(out)
     }
 
-    fn write_tweaked(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
+    fn write_simd(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
         let mut out = Vec::new();
         {
             let local_writer = LocalWriter { buf: &mut out };
             let mut writer = JfifWriter::new(local_writer);
 
             writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
-            writer.write_ac_block_tweaked(block, START, END, table)?;
+            writer.write_ac_block_simd(block, START, END, table)?;
             writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
             writer.flush_bit_buffer()?;
         }
@@ -182,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn simd_tweaked_ac_writer_matches_original_for_captured_samples() {
+    fn simd_ac_writer_matches_original_for_captured_samples() {
         let samples_string = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/criterion/huffman_data_set.json"
@@ -193,10 +160,10 @@ mod tests {
             let ac_table = &sample_set.huffman_tables[sample.ac_huffman_table as usize].1;
             let block = sample.block;
             let og = write_og(&block, ac_table).unwrap();
-            let tweaked = write_tweaked(&block, ac_table).unwrap();
+            let simd = write_simd(&block, ac_table).unwrap();
 
             assert_eq!(
-                og, tweaked,
+                og, simd,
                 "Mismatch at sample {idx} with block: {block:?}",
             );
         }

@@ -353,7 +353,22 @@ impl<W: JfifWrite> JfifWriter<W> {
         Ok(())
     }
 
+
     pub fn write_ac_block(
+        &mut self,
+        block: &AlignedBlock,
+        start: usize,
+        end: usize,
+        ac_table: &HuffmanTable,
+    ) -> Result<(), EncodingError> {
+        #[cfg(not(feature = "simd"))]
+        return self.write_ac_block_linear(block, start, end, ac_table);
+
+        #[cfg(feature = "simd")]
+        return self.write_ac_block_simd(block, start, end, ac_table);
+    }
+
+    pub fn write_ac_block_linear(
         &mut self,
         block: &AlignedBlock,
         start: usize,
