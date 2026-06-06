@@ -21,20 +21,19 @@ impl<W: JfifWrite> JfifWriter<W> {
                 zero_run += 1;
             } else {
                 while zero_run > 15 {
+                    // eprintln!("[original]: huffman_encode(0xF0, ac_table)");
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
                 }
-
-                let (size, value) = get_code(value);
-                let symbol = (zero_run << 4) | size;
-
-                self.huffman_encode_value(size, symbol, value, ac_table)?;
+                // eprintln!("[original]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)");
+                self.write_val_with_preceding_zeros(value, zero_run, ac_table)?;
 
                 zero_run = 0;
             }
         }
 
         if zero_run > 0 {
+            // eprintln!("[original]: huffman_encode(0x00, ac_table)");
             self.huffman_encode(0x00, ac_table)?;
         }
 
@@ -52,9 +51,8 @@ impl<W: JfifWrite> JfifWriter<W> {
             if value == 0 {
                 zero_run += 1;
             } else {
-                let (size, value) = get_code(value);
-                let symbol = (zero_run << 4) | size;
-                self.huffman_encode_value(size, symbol, value, ac_table)?;
+                // eprintln!("[new]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)");
+                self.write_val_with_preceding_zeros(value, zero_run, ac_table)?;
                 zero_run = 0;
             }
         }
@@ -88,40 +86,44 @@ impl<W: JfifWrite> JfifWriter<W> {
                    "Remaining elements must be divisible by SIMD_I16_WIDTH for vectorized processing");
         let chunks = block.data[INITIAL_LINEAR..BLOCK_SIZE].chunks_exact(SIMD_I16_WIDTH);
         'chunk_loop: for chunk in chunks.into_iter(){
-            eprintln!("chunk: {:?}", chunk);
+            // eprintln!("chunk: {:?}", chunk);
             let simd_values = SimdI16::from_slice(chunk);
             let non_zero = simd_values.simd_ne(SimdI16::splat(0));
             let mut checked_vals: u8 = 0;
             assert_eq!(SIMD_I16_WIDTH, size_of::<u16>()*8, "SIMD_I16_WIDTH must match size of u16 for bitmask conversion");
             let mut non_zeros_bitmask = (non_zero.to_bitmask() as u16).reverse_bits();
             if non_zeros_bitmask == 0 {
-                self.huffman_encode(0xF0, ac_table)?;
+                zero_run += 16;
                 continue 'chunk_loop;
             }
 
             'vals_loop: while non_zeros_bitmask != 0 {
-                eprintln!("start loop non_zeros_bitmask: {non_zeros_bitmask:016b}");
+                // eprintln!("start loop non_zeros_bitmask: {non_zeros_bitmask:016b}");
                 let leading_zeros = non_zeros_bitmask.leading_zeros() as u8;
-                eprintln!("leading_zeros: {leading_zeros}");
+                // eprintln!("leading_zeros: {leading_zeros}");
                 zero_run += leading_zeros - checked_vals;
-                eprintln!("zero_run: {zero_run}");
+                // eprintln!("zero_run: {zero_run}");
                 if zero_run >= 16 {
+                    eprintln!("[new]: huffman_encode(0xF0, ac_table)");
                     self.huffman_encode(0xF0, ac_table)?;
                     zero_run -= 16;
                 }
                 let next_val = chunk[leading_zeros as usize];
-                eprintln!("next_val: {next_val}");
+                // eprintln!("next_val: {next_val}");
+                // eprintln!("[new]: write_val_with_preceding_zeros({next_val}, {zero_run}, ac_table)");
                 self.write_val_with_preceding_zeros(next_val, zero_run, ac_table)?;
                 zero_run = 0;
-                checked_vals = leading_zeros;
-                eprintln!("checked_vals: {checked_vals}");
+                checked_vals = leading_zeros+1;
+                // eprintln!("checked_vals: {checked_vals}");
                 non_zeros_bitmask &= !((1<<15) >> leading_zeros);
-                eprintln!("leading_zeros: {leading_zeros}, new non_zeros_bitmask: {non_zeros_bitmask:016b}");
+                // eprintln!("leading_zeros: {leading_zeros}, new non_zeros_bitmask: {non_zeros_bitmask:016b}");
             }
-            eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
+            zero_run = 16 - checked_vals;
+            // eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
         }
 
         if zero_run > 0 {
+            // eprintln!("[new]: huffman_encode(0x00, ac_table)");
             self.huffman_encode(0x00, ac_table)?;
         }
 
