@@ -1357,7 +1357,7 @@ impl Operations for DefaultOperations {}
 mod tests {
     use alloc::vec;
 
-    use crate::encoder::{get_block_linear, get_block_simd, get_num_bits};
+    use crate::encoder::{get_num_bits};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
 
@@ -1411,6 +1411,8 @@ mod tests {
     #[cfg(feature = "simd")]
     #[test]
     fn test_get_block_linear_match_get_block_optimized() {
+        use crate::encoder::{get_block_linear, get_block_simd};
+
         let source_data = (0..=u16::MAX).map(|p|(p & 0x00FF) as u8).collect::<vec::Vec<_>>();
 
         let normal = get_block_linear(&source_data, 0, 0, 1, 1, 256);
