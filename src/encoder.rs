@@ -18,6 +18,9 @@ use std::fs::File;
 #[cfg(feature = "std")]
 use std::path::Path;
 
+#[cfg(feature = "simd")]
+use std::simd::{num::SimdUint, Simd};
+
 #[cfg(feature = "generate-huffman-data")]
 use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
 
@@ -1012,7 +1015,6 @@ impl<W: JfifWrite> Encoder<W> {
     ) -> [Vec<AlignedBlock>; 4] {
         let width = image.width();
         let height = image.height();
-
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
         let num_cols = usize::from(width).div_ceil(8 * max_h_sampling) * max_h_sampling;
@@ -1251,7 +1253,29 @@ impl Encoder<BufWriter<File>> {
 }
 
 // TODO: simd
-fn get_block(
+pub fn get_block(
+    data: &[u8],
+    start_x: usize,
+    start_y: usize,
+    col_stride: usize,
+    row_stride: usize,
+    width: usize,
+) -> AlignedBlock {
+    #[cfg(feature = "simd")]
+    {
+        if col_stride == 1 {
+            get_block_simd(data, start_x, start_y, col_stride, row_stride, width)
+        } else {
+            get_block_linear(data, start_x, start_y, col_stride, row_stride, width)
+        }
+    }
+    #[cfg(not(feature = "simd"))]
+    {
+        get_block_linear(data, start_x, start_y, col_stride, row_stride, width)
+    }
+}
+
+pub fn get_block_linear(
     data: &[u8],
     start_x: usize,
     start_y: usize,
@@ -1268,6 +1292,27 @@ fn get_block(
 
             block[y * 8 + x] = (data[iy * width + ix] as i16) - 128;
         }
+    }
+
+    AlignedBlock::new(block)
+}
+
+#[cfg(feature = "simd")]
+pub fn get_block_simd(
+    data: &[u8],
+    start_x: usize,
+    start_y: usize,
+    col_stride: usize,
+    row_stride: usize,
+    width: usize,
+) -> AlignedBlock {
+    debug_assert!(col_stride == 1, "cannot do horizontal sub sampling with SIMD. (can but no gains. Use `get_block` instead)");
+    let mut block = [0i16; 64];
+    for y in 0..8 {
+        let iy = start_y + (y * row_stride);
+        let row_bytes = Simd::<u8, 8>::from_slice(&data[iy * width + start_x..]);
+        let row: Simd::<i16, 8> = row_bytes.cast() - Simd::<i16, 8>::splat(128);
+        row.copy_to_slice(&mut block[y * 8..(y + 1) * 8])
     }
 
     AlignedBlock::new(block)
@@ -1312,7 +1357,7 @@ impl Operations for DefaultOperations {}
 mod tests {
     use alloc::vec;
 
-    use crate::encoder::get_num_bits;
+    use crate::encoder::{get_block_linear, get_block_simd, get_num_bits};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
 
@@ -1361,5 +1406,35 @@ mod tests {
 
         encoder.set_progressive(false);
         assert_eq!(encoder.progressive_scans(), None);
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn test_get_block_linear_match_get_block_optimized() {
+        let source_data = (0..=u16::MAX).map(|p|(p & 0x00FF) as u8).collect::<vec::Vec<_>>();
+
+        let normal = get_block_linear(&source_data, 0, 0, 1, 1, 256);
+        let optimized = get_block_simd(&source_data, 0, 0, 1, 1, 256);
+        assert_eq!(normal.data, optimized.data);
+
+        // Test case: Non-zero starting offsets (x and y)
+        let normal = get_block_linear(&source_data, 7, 13, 1, 1, 256);
+        let optimized = get_block_simd(&source_data, 7, 13, 1, 1, 256);
+        assert_eq!(normal.data, optimized.data);
+
+        // Test case: Increased row_stride for vertically subsampled/spaced data
+        let normal = get_block_linear(&source_data, 0, 0, 1, 2, 256);
+        let optimized = get_block_simd(&source_data, 0, 0, 1, 2, 256);
+        assert_eq!(normal.data, optimized.data);
+
+        // Test case: Unique odd width, along with row_stride and offsets combined
+        let normal = get_block_linear(&source_data, 15, 8, 1, 3, 127);
+        let optimized = get_block_simd(&source_data, 15, 8, 1, 3, 127);
+        assert_eq!(normal.data, optimized.data);
+
+        // Test case: Near the end of the buffer boundaries
+        let normal = get_block_linear(&source_data, 248, 248, 1, 1, 256);
+        let optimized = get_block_simd(&source_data, 248, 248, 1, 1, 256);
+        assert_eq!(normal.data, optimized.data);
     }
 }
