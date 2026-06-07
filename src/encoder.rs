@@ -747,7 +747,6 @@ impl<W: JfifWrite> Encoder<W> {
             for inter_block_y in 0..(8 * max_v_sampling) {
                 let global_y = inter_block_y + block_y_index * 8 * max_v_sampling;
 
-                // TODO: If out of bounds simply do not change buffer. (rare case but easy win)
                 let global_y = (global_y.min(height as usize - 1)) as u16;
 
                 // fill the rows
@@ -982,7 +981,8 @@ impl<W: JfifWrite> Encoder<W> {
                             .write_marker(Marker::RST((restarts % 8) as u8))?;
                     }
 
-                    // TODO: switch to `write_ac_block` to allow for simd once I understand why there are multiple chunks.
+                    // TODO: simd. Ideally chunk 1 is still linear because lower chance of 0 runs,
+                    //  but then subsequent chunks use a modified `write_ac_block_simd`
                     self.writer.write_ac_block_linear(
                         block,
                         start,
@@ -1252,7 +1252,6 @@ impl Encoder<BufWriter<File>> {
     }
 }
 
-// TODO: simd
 pub fn get_block(
     data: &[u8],
     start_x: usize,
