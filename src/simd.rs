@@ -9,7 +9,7 @@ pub use fdct::fdct_simd;
 pub use quantize::quantize_block_simd;
 pub use ycbcr::*;
 
-pub(crate) struct SimdOperations;
+pub struct SimdOperations;
 
 impl Operations for SimdOperations {
     #[inline(always)]

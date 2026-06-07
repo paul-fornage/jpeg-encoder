@@ -572,7 +572,7 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
-    fn init_components(&mut self, color: JpegColorType) {
+    pub fn init_components(&mut self, color: JpegColorType) {
         let (horizontal_sampling_factor, vertical_sampling_factor) =
             self.sampling_factor.get_sampling_factors();
 
@@ -981,8 +981,6 @@ impl<W: JfifWrite> Encoder<W> {
                             .write_marker(Marker::RST((restarts % 8) as u8))?;
                     }
 
-                    // TODO: simd. Ideally chunk 1 is still linear because lower chance of 0 runs,
-                    //  but then subsequent chunks use a modified `write_ac_block_simd`
                     self.writer.write_ac_block_linear(
                         block,
                         start,
@@ -1007,8 +1005,7 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
-    // TODO: simd
-    fn encode_blocks<I: ImageBuffer, OP: Operations>(
+    pub fn encode_blocks<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],

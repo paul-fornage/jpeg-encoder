@@ -92,6 +92,9 @@ pub use simd::quantize_block_simd;
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::RgbImageSimd;
 
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::SimdOperations;
+
 #[cfg(test)]
 mod tests {
     use crate::image_buffer::rgb_to_ycbcr;
