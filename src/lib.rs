@@ -45,6 +45,7 @@ mod quantization;
 #[cfg(feature = "simd")]
 mod simd;
 mod writer;
+mod quantized_block_iter;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;

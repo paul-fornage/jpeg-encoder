@@ -624,17 +624,6 @@ impl<W: JfifWrite> Encoder<W> {
         }
     }
 
-    fn get_max_sampling_size(&self) -> (usize, usize) {
-        let max_h_sampling = self.components.iter().fold(1, |value, component| {
-            value.max(component.horizontal_sampling_factor)
-        });
-
-        let max_v_sampling = self.components.iter().fold(1, |value, component| {
-            value.max(component.vertical_sampling_factor)
-        });
-
-        (usize::from(max_h_sampling), usize::from(max_v_sampling))
-    }
 
     fn write_frame_header<I: ImageBuffer>(
         &mut self,
@@ -672,32 +661,7 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
-    fn init_rows(&mut self, buffer_size: usize) -> [Vec<u8>; 4] {
-        // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
-        // Resource overhead should be minimal because an empty Vec doesn't allocate
 
-        match self.components.len() {
-            1 => [
-                Vec::with_capacity(buffer_size),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            ],
-            3 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::new(),
-            ],
-            4 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-            ],
-            len => unreachable!("Unsupported component length: {}", len),
-        }
-    }
 
     /// Encode all components with one scan
     ///
@@ -710,12 +674,6 @@ impl<W: JfifWrite> Encoder<W> {
         self.write_frame_header(&image, q_tables)?;
         self.writer
             .write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
-
-        #[cfg(feature = "generate-huffman-data")]
-        let mut huffman_data_set = HuffmanSampleDataSet {
-            huffman_tables: self.huffman_tables.clone(),
-            samples: Vec::new(),
-        };
 
         let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
 
@@ -731,7 +689,7 @@ impl<W: JfifWrite> Encoder<W> {
         // contains sets of 8 rows broken down by component.
         // when subsampling factor for a components is greater than 1,
         //  this actually contains the next 8*subsampling
-        let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
+        let mut row: [Vec<_>; 4] = init_rows(&self.components, buffer_size);
 
         let mut prev_dc = [0i16; 4];
 
@@ -795,13 +753,6 @@ impl<W: JfifWrite> Encoder<W> {
                                 &mut q_block,
                                 &q_tables[component.quantization_table as usize],
                             );
-                            #[cfg(feature = "generate-huffman-data")]
-                            huffman_data_set.samples.push(HuffmanSampleData {
-                                block: q_block.clone(),
-                                last_dc: prev_dc[i],
-                                dc_huffman_table: component.dc_huffman_table,
-                                ac_huffman_table: component.ac_huffman_table,
-                            });
                             self.writer.write_block(
                                 &q_block,
                                 prev_dc[i],
@@ -824,13 +775,6 @@ impl<W: JfifWrite> Encoder<W> {
                 }
             }
         }
-
-        #[cfg(feature = "generate-huffman-data")]
-        std::fs::write(
-            "huffman_data_set.json",
-            serde_json::to_string(&huffman_data_set).unwrap(),
-        )
-        .unwrap();
 
         self.writer.finalize_bit_buffer()?;
 
@@ -1023,7 +967,7 @@ impl<W: JfifWrite> Encoder<W> {
         let buffer_width = num_cols * 8;
         let buffer_size = num_cols * num_rows * 64;
 
-        let mut row: [Vec<_>; 4] = self.init_rows(buffer_size);
+        let mut row: [Vec<_>; 4] = init_rows(&self.components, buffer_size);
 
         for y in 0..num_rows * 8 {
             let y = (y.min(usize::from(height) - 1)) as u16;
@@ -1246,6 +1190,45 @@ impl Encoder<BufWriter<File>> {
         let file = File::create(path)?;
         let buf = BufWriter::new(file);
         Ok(Self::new(buf, quality))
+    }
+}
+
+pub fn get_max_sampling_size(components: &[Component]) -> (usize, usize) {
+    let max_h_sampling = components.iter().fold(1, |value, component| {
+        value.max(component.horizontal_sampling_factor)
+    });
+
+    let max_v_sampling = components.iter().fold(1, |value, component| {
+        value.max(component.vertical_sampling_factor)
+    });
+
+    (usize::from(max_h_sampling), usize::from(max_v_sampling))
+}
+
+pub(crate) fn init_rows(components: &[Component], buffer_size: usize) -> [Vec<u8>; 4] {
+    // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
+    // Resource overhead should be minimal because an empty Vec doesn't allocate
+
+    match components.len() {
+        1 => [
+            Vec::with_capacity(buffer_size),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        ],
+        3 => [
+            Vec::with_capacity(buffer_size),
+            Vec::with_capacity(buffer_size),
+            Vec::with_capacity(buffer_size),
+            Vec::new(),
+        ],
+        4 => [
+            Vec::with_capacity(buffer_size),
+            Vec::with_capacity(buffer_size),
+            Vec::with_capacity(buffer_size),
+            Vec::with_capacity(buffer_size),
+        ],
+        len => unreachable!("Unsupported component length: {}", len),
     }
 }
 

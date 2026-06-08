@@ -93,6 +93,7 @@ pub trait ImageBuffer {
     /// Height of the image
     fn height(&self) -> u16;
 
+    // TODO add a fill buffers that pads for chunking? Might have some speedups?
     /// Add color values for the row to color component buffers
     fn fill_buffers(&self, y: u16, buffers: &mut [Vec<u8>; 4]);
 }
