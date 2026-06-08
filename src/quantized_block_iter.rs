@@ -1,15 +1,17 @@
 use core::fmt::Formatter;
 use std::marker::PhantomData;
 use std::vec::Vec;
-use crate::{AlignedBlock, Encoder, ImageBuffer, QuantizationTable};
-use crate::encoder::{get_block, get_max_sampling_size, init_rows, Component, Operations};
+use crate::quantization::QuantizationTable;
+
+use crate::{ImageBuffer};
+use crate::encoder::{get_block, get_max_sampling_size, init_rows, Component, AlignedBlock, Operations};
 
 
 pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
     image: &I,
     q_tables: &'a [QuantizationTable; 2],
     components: &[Component],
-) -> heapless::Vec<QBlockComponentIter<'a, OP>, 4> { // TODO: ret type should be more like a heapless vec
+) -> heapless::Vec<QBlockComponentIter<'a, OP>, 4> {
     let (max_h_sampling, max_v_sampling) = get_max_sampling_size(components);
 
     let converted_image = convert_full_image::<I, OP>(image, components, max_h_sampling, max_v_sampling);
@@ -18,20 +20,18 @@ pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
 
     let ConvertedImage {
         rows: all_rows,
-        max_num_chunk_cols,
-        max_num_chunk_rows,
-        min_num_chunk_cols,
-        min_num_chunk_rows
+        buffer_width,
+        num_chunk_cols,
+        num_chunk_rows
     } = converted_image;
 
-    let buffer_width = max_num_chunk_cols * 8;
 
     for (i, (component, rows)) in components.iter().zip(all_rows).enumerate() {
         let h_scale = max_h_sampling / component.horizontal_sampling_factor as usize;
         let v_scale = max_v_sampling / component.vertical_sampling_factor as usize;
 
-        let num_cols = min_num_chunk_cols.div_ceil(h_scale);
-        let num_rows = min_num_chunk_rows.div_ceil(v_scale);
+        let num_cols = num_chunk_cols.div_ceil(h_scale);
+        let num_rows = num_chunk_rows.div_ceil(v_scale);
 
         debug_assert!(num_cols > 0);
         debug_assert!(num_rows > 0);
@@ -45,6 +45,7 @@ pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
             i,
             num_cols,
             num_rows,
+            next_index: 0,
             _op: PhantomData::<OP>::default(),
         }).unwrap();
 
@@ -61,6 +62,7 @@ pub struct QBlockComponentIter<'a, OP: Operations>{
     i: usize,
     num_cols: usize,
     num_rows: usize,
+    next_index: usize,
     _op: PhantomData<OP>,
 }
 
@@ -98,6 +100,7 @@ impl<'a, OP: Operations> QBlockComponentIter<'a, OP>{
             i,
             num_cols,
             num_rows,
+            next_index: 0,
             _op: Default::default(),
         }
     }
@@ -120,27 +123,36 @@ impl<OP: Operations> Iterator for QBlockComponentIter<'_, OP> {
     type Item = AlignedBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for block_y in 0..self.num_rows {
-            for block_x in 0..self.num_cols {
-                return Some(self.eval(block_x, block_y));
-            }
+        if self.next_index >= self.num_cols * self.num_rows {
+            return None;
         }
-        None
+
+        let index = self.next_index;
+        self.next_index += 1;
+
+        let block_x = index % self.num_cols;
+        let block_y = index / self.num_cols;
+
+        Some(self.eval(block_x, block_y))
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.len();
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a, OP: Operations> ExactSizeIterator for QBlockComponentIter<'a, OP> {
+    fn len(&self) -> usize {
+        (self.num_cols * self.num_rows) - self.next_index
     }
 }
 
 
 pub struct ConvertedImage{
     pub rows: [Vec<u8>; 4],
-    /// This is the number of the total number of chunks needed.
-    ///  When downsampling with factor 2, if `min_num_chunk_cols` is odd,
-    ///  then we need to pad the image.
-    ///  This number includes the padding but is still in 8 pixel blocks
-    pub max_num_chunk_cols: usize,
-    pub max_num_chunk_rows: usize,
-    /// This number is the smallest number of normal 8x8 chunks needed to cover all original pixels.
-    pub min_num_chunk_cols: usize,
-    pub min_num_chunk_rows: usize,
+    buffer_width: usize,
+    num_chunk_cols: usize,
+    num_chunk_rows: usize,
 }
 
 pub fn convert_full_image<I: ImageBuffer, OP: Operations>(
@@ -178,16 +190,17 @@ pub fn convert_full_image<I: ImageBuffer, OP: Operations>(
         }
     }
 
-    let min_num_chunk_cols = usize::from(pixel_width).div_ceil(8);
-    let min_num_chunk_rows = usize::from(pixel_height).div_ceil(8);
+    let num_chunk_cols = usize::from(pixel_width).div_ceil(8);
+    let num_chunk_rows = usize::from(pixel_height).div_ceil(8);
 
-    debug_assert!(min_num_chunk_cols > 0);
-    debug_assert!(min_num_chunk_rows > 0);
+    debug_assert!(num_chunk_cols > 0);
+    debug_assert!(num_chunk_rows > 0);
     ConvertedImage{
         rows,
-        max_num_chunk_cols,
-        max_num_chunk_rows,
-        min_num_chunk_cols,
-        min_num_chunk_rows,
+        buffer_width,
+        num_chunk_cols,
+        num_chunk_rows
     }
 }
+
+

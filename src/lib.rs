@@ -37,8 +37,6 @@ mod encoder;
 mod error;
 mod fdct;
 mod huffman;
-#[cfg(any(feature = "benchmark", test))]
-pub mod huffman_sample_data;
 mod image_buffer;
 mod marker;
 mod quantization;
@@ -46,6 +44,8 @@ mod quantization;
 mod simd;
 mod writer;
 mod quantized_block_iter;
+#[cfg(any(feature = "benchmark", test))]
+pub mod huffman_sample_data;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
@@ -62,27 +62,32 @@ pub use image_buffer::RgbImage;
 #[cfg(any(feature = "benchmark", test))]
 pub use encoder::AlignedBlock;
 
-#[cfg(any(feature = "benchmark"))]
-pub use encoder::{get_block_linear, get_block_simd};
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use encoder::get_block_simd;
 
-#[cfg(any(feature = "generate-huffman-data", feature = "benchmark"))]
+#[cfg(feature = "benchmark")]
+pub use encoder::get_block_linear;
+
+#[cfg(feature = "benchmark")]
+pub use encoder::Operations;
+
+#[cfg(any(feature = "benchmark", test))]
+pub use encoder::{Component, init_components};
+
+#[cfg(any(feature = "benchmark", test))]
+pub use encoder::DefaultOperations;
+
+#[cfg(any(feature = "benchmark", test))]
+pub use quantized_block_iter::encode_blocks;
+
+#[cfg(feature = "benchmark")]
 pub use writer::JfifWriter;
 
 #[cfg(any(feature = "benchmark", test))]
 pub use quantization::QuantizationTable;
 
-#[cfg(feature = "generate-huffman-data")]
-pub use huffman::HuffmanTable;
-
 #[cfg(feature = "benchmark")]
-#[inline(always)]
-pub fn quantize_block_scalar(
-    block: &AlignedBlock,
-    q_block: &mut AlignedBlock,
-    table: &QuantizationTable,
-) {
-    <encoder::DefaultOperations as encoder::Operations>::quantize_block(block, q_block, table);
-}
+pub use huffman::HuffmanTable;
 
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::fdct_simd;

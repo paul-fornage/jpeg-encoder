@@ -15,21 +15,17 @@ rust-version = "1.87"
 default = ["std"]
 simd = ["std"]
 std = []
-generate-huffman-data = ["serde", "serde_json", "image"]
+
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
 benchmark = ["serde"]
 
 [dependencies]
 serde = {version = "1.0.228", features = ["derive"], optional = true}
-serde_json = {version = "1.0.150", optional = true}
-image = {version = "0.25.10", optional = true}
 heapless = "0.9.3"
 
 [dev-dependencies]
 jpeg-decoder = { version = "0.3", default-features = false }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.150" }
 
 [profile.dev]
 opt-level = 1

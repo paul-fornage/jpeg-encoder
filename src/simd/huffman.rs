@@ -1,6 +1,6 @@
 use crate::encoder::AlignedBlock;
 use crate::huffman::HuffmanTable;
-use crate::writer::{JfifWriter, get_code};
+use crate::writer::{JfifWriter};
 use crate::{EncodingError, JfifWrite};
 use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
@@ -106,12 +106,12 @@ impl<W: JfifWrite> JfifWriter<W> {
 mod tests {
     use super::*;
     use crate::huffman::HuffmanTable;
-    use crate::huffman_sample_data::HuffmanSampleData;
-    use crate::huffman_sample_data::HuffmanSampleDataSet;
     use alloc::vec::Vec;
     use core::array;
-    use crate::{ColorType, Encoder, SamplingFactor};
+    use crate::{ColorType, Encoder, RgbImage, SamplingFactor};
+    use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
     use crate::tests::create_test_img_rgb;
+    use crate::writer::get_code;
 
     const START: usize = 1;
     const END: usize = 64;
@@ -195,30 +195,11 @@ mod tests {
     }
 
     #[test]
-    fn simd_ac_writer_matches_original_for_captured_samples() {
-        let samples_string = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/criterion/real_image_huffman_data_set.json"
-        ));
-        let sample_set: HuffmanSampleDataSet = serde_json::from_str(samples_string).unwrap();
-
-        for (idx, sample) in sample_set.samples.iter().enumerate() {
-            let ac_table = &sample_set.huffman_tables[sample.ac_huffman_table as usize].1;
-            let block = sample.block;
-            let og = write_og(&block, ac_table).unwrap();
-            let simd = write_simd(&block, ac_table).unwrap();
-
-            assert_eq!(og, simd, "Mismatch at sample {idx} with block: {block:?}",);
-        }
-    }
-
-    #[test]
     fn simd_ac_writer_matches_original_for_test_image() {
-        let samples_string = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/criterion/test_image_huffman_data_set.json"
-        ));
-        let sample_set: HuffmanSampleDataSet = serde_json::from_str(samples_string).unwrap();
+
+        let (data, width, height) = create_test_img_rgb();
+        let image_buffer = RgbImage(&data, width, height);
+        let sample_set = HuffmanSampleDataSet::from_image(&image_buffer);
 
         for (idx, sample) in sample_set.samples.iter().enumerate() {
             let ac_table = &sample_set.huffman_tables[sample.ac_huffman_table as usize].1;

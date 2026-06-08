@@ -8,7 +8,7 @@ use crate::{EncodingError, PixelDensity};
 
 use alloc::vec;
 use alloc::vec::Vec;
-
+use core::fmt::{Debug, Formatter};
 #[cfg(feature = "std")]
 use std::io::BufWriter;
 
@@ -21,8 +21,7 @@ use std::path::Path;
 #[cfg(feature = "simd")]
 use std::simd::{num::SimdUint, Simd};
 
-#[cfg(feature = "generate-huffman-data")]
-use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
+use crate::quantized_block_iter::encode_blocks;
 
 /// # Color types used in encoding
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -44,6 +43,23 @@ pub enum JpegColorType {
 #[repr(C, align(32))]
 pub struct AlignedBlock {
     pub data: [i16; 64],
+}
+
+impl Debug for AlignedBlock {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "AlignedBlock {{\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n\t{:?}\n}}",
+            &self.data[0..8],
+            &self.data[8..16],
+            &self.data[16..24],
+            &self.data[24..32],
+            &self.data[32..40],
+            &self.data[40..48],
+            &self.data[48..56],
+            &self.data[56..64]
+        )
+    }
 }
 
 impl AlignedBlock {
@@ -193,7 +209,7 @@ impl SamplingFactor {
     }
 }
 
-pub(crate) struct Component {
+pub struct Component {
     pub id: u8,
     pub quantization_table: u8,
     pub dc_huffman_table: u8,
@@ -444,7 +460,7 @@ impl<W: JfifWrite> Encoder<W> {
     ///
     /// Data format and length must conform to specified width, height and color type.
     pub fn encode(
-        self,
+        self, // TODO: Consumes self? Can't reuse buffers???????
         data: &[u8],
         width: u16,
         height: u16,
@@ -573,55 +589,7 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
     pub fn init_components(&mut self, color: JpegColorType) {
-        let (horizontal_sampling_factor, vertical_sampling_factor) =
-            self.sampling_factor.get_sampling_factors();
-
-        match color {
-            JpegColorType::Luma => {
-                add_component!(self.components, 0, 0, 1, 1);
-            }
-            JpegColorType::Ycbcr => {
-                add_component!(
-                    self.components,
-                    0,
-                    0,
-                    horizontal_sampling_factor,
-                    vertical_sampling_factor
-                );
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-            }
-            JpegColorType::Cmyk => {
-                add_component!(self.components, 0, 1, 1, 1);
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-                add_component!(
-                    self.components,
-                    3,
-                    0,
-                    horizontal_sampling_factor,
-                    vertical_sampling_factor
-                );
-            }
-            JpegColorType::Ycck => {
-                add_component!(
-                    self.components,
-                    0,
-                    0,
-                    horizontal_sampling_factor,
-                    vertical_sampling_factor
-                );
-                add_component!(self.components, 1, 1, 1, 1);
-                add_component!(self.components, 2, 1, 1, 1);
-                add_component!(
-                    self.components,
-                    3,
-                    0,
-                    horizontal_sampling_factor,
-                    vertical_sampling_factor
-                );
-            }
-        }
+        init_components(&mut self.components, self.sampling_factor, color);
     }
 
 
@@ -949,112 +917,22 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
+
     pub fn encode_blocks<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
     ) -> [Vec<AlignedBlock>; 4] {
-        let width = image.width();
-        let height = image.height();
-        let (max_h_sampling, max_v_sampling) = get_max_sampling_size(&self.components);
-
-        let num_cols = usize::from(width).div_ceil(8 * max_h_sampling) * max_h_sampling;
-        let num_rows = usize::from(height).div_ceil(8 * max_v_sampling) * max_v_sampling;
-
-        debug_assert!(num_cols > 0);
-        debug_assert!(num_rows > 0);
-
-        let buffer_width = num_cols * 8;
-        let buffer_size = num_cols * num_rows * 64;
-
-        let mut row: [Vec<_>; 4] = init_rows(&self.components, buffer_size);
-
-        for y in 0..num_rows * 8 {
-            let y = (y.min(usize::from(height) - 1)) as u16;
-
-            image.fill_buffers(y, &mut row);
-
-            for _ in usize::from(width)..num_cols * 8 {
-                for channel in &mut row {
-                    if !channel.is_empty() {
-                        channel.push(channel[channel.len() - 1]);
-                    }
-                }
-            }
+        let iters = encode_blocks::<I, OP>(image, q_tables, &self.components);
+        let mut fellas = iters.into_iter().map(|iter| {
+            iter.collect::<Vec<AlignedBlock>>()
+        }).collect::<heapless::Vec<Vec<AlignedBlock>, 4>>();
+        while fellas.len() < 4 {
+            fellas.push(Vec::new()).expect("Expect to be able to push to list with capacity 4 while length is less than 4");
         }
-
-        let num_cols = usize::from(width).div_ceil(8);
-        let num_rows = usize::from(height).div_ceil(8);
-
-        debug_assert!(num_cols > 0);
-        debug_assert!(num_rows > 0);
-
-        let mut blocks: [Vec<_>; 4] = self.init_block_buffers(buffer_size / 64);
-
-        for (i, component) in self.components.iter().enumerate() {
-            let h_scale = max_h_sampling / component.horizontal_sampling_factor as usize;
-            let v_scale = max_v_sampling / component.vertical_sampling_factor as usize;
-
-            let cols = num_cols.div_ceil(h_scale);
-            let rows = num_rows.div_ceil(v_scale);
-
-            debug_assert!(cols > 0);
-            debug_assert!(rows > 0);
-
-            for block_y in 0..rows {
-                for block_x in 0..cols {
-                    let mut block = get_block(
-                        &row[i],
-                        block_x * 8 * h_scale,
-                        block_y * 8 * v_scale,
-                        h_scale,
-                        v_scale,
-                        buffer_width,
-                    );
-
-                    OP::fdct(&mut block);
-
-                    let mut q_block = AlignedBlock::default();
-
-                    OP::quantize_block(
-                        &block,
-                        &mut q_block,
-                        &q_tables[component.quantization_table as usize],
-                    );
-
-                    blocks[i].push(q_block);
-                }
-            }
-        }
-        blocks
+        fellas.into_array().expect("Expect to be able to convert heapless Vec to fixed array of length 4 after filling with empty vectors")
     }
 
-    fn init_block_buffers(&mut self, buffer_size: usize) -> [Vec<AlignedBlock>; 4] {
-        // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
-        // Resource overhead should be minimal because an empty Vec doesn't allocate
-
-        match self.components.len() {
-            1 => [
-                Vec::with_capacity(buffer_size),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            ],
-            3 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::new(),
-            ],
-            4 => [
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-                Vec::with_capacity(buffer_size),
-            ],
-            len => unreachable!("Unsupported component length: {}", len),
-        }
-    }
 
     // Create new huffman tables optimized for this image
     fn optimize_huffman_table(&mut self, blocks: &[Vec<AlignedBlock>; 4]) {
@@ -1232,6 +1110,61 @@ pub(crate) fn init_rows(components: &[Component], buffer_size: usize) -> [Vec<u8
     }
 }
 
+pub fn init_components(
+    components: &mut Vec<Component>,
+    sampling_factor: SamplingFactor,
+    color: JpegColorType
+) {
+    let (horizontal_sampling_factor, vertical_sampling_factor) =
+        sampling_factor.get_sampling_factors();
+    match color {
+        JpegColorType::Luma => {
+            add_component!(components, 0, 0, 1, 1);
+        }
+        JpegColorType::Ycbcr => {
+            add_component!(
+                    components,
+                    0,
+                    0,
+                    horizontal_sampling_factor,
+                    vertical_sampling_factor
+                );
+            add_component!(components, 1, 1, 1, 1);
+            add_component!(components, 2, 1, 1, 1);
+        }
+        JpegColorType::Cmyk => {
+            add_component!(components, 0, 1, 1, 1);
+            add_component!(components, 1, 1, 1, 1);
+            add_component!(components, 2, 1, 1, 1);
+            add_component!(
+                    components,
+                    3,
+                    0,
+                    horizontal_sampling_factor,
+                    vertical_sampling_factor
+                );
+        }
+        JpegColorType::Ycck => {
+            add_component!(
+                    components,
+                    0,
+                    0,
+                    horizontal_sampling_factor,
+                    vertical_sampling_factor
+                );
+            add_component!(components, 1, 1, 1, 1);
+            add_component!(components, 2, 1, 1, 1);
+            add_component!(
+                    components,
+                    3,
+                    0,
+                    horizontal_sampling_factor,
+                    vertical_sampling_factor
+                );
+        }
+    }
+}
+
 pub fn get_block(
     data: &[u8],
     start_x: usize,
@@ -1312,7 +1245,7 @@ fn get_num_bits(mut value: i16) -> u8 {
     num_bits
 }
 
-pub(crate) trait Operations {
+pub trait Operations {
     #[inline(always)]
     fn fdct(data: &mut AlignedBlock) {
         fdct(data);
@@ -1328,15 +1261,18 @@ pub(crate) trait Operations {
 }
 
 #[cfg_attr(feature = "simd", allow(dead_code))]
-pub(crate) struct DefaultOperations;
+pub struct DefaultOperations;
 
 impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {
     use alloc::vec;
+    use alloc::vec::Vec;
 
-    use crate::encoder::{get_num_bits};
+    use crate::encoder::get_num_bits;
+    use crate::image_buffer::RgbImage;
+    use crate::quantization::{QuantizationTable, QuantizationTableType};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
 
@@ -1385,6 +1321,73 @@ mod tests {
 
         encoder.set_progressive(false);
         assert_eq!(encoder.progressive_scans(), None);
+    }
+
+    #[test]
+    fn test_encode_blocks_iter_matches_encode_blocks() {
+        let width = 587u16;
+        let height = 181u16;
+        let mut data = Vec::with_capacity(width as usize * height as usize * 3);
+
+        for y in 0..height {
+            for x in 0..width {
+                data.push((x * 7 + y * 3) as u8);
+                data.push((x * 5 + y * 11) as u8);
+                data.push((x * 13 + y * 17) as u8);
+            }
+        }
+
+        let image = RgbImage(&data, width, height);
+        let q_tables = [
+            QuantizationTable::new_with_quality(&QuantizationTableType::Default, 90, true),
+            QuantizationTable::new_with_quality(&QuantizationTableType::Default, 90, false),
+        ];
+
+        for sampling_factor in [SamplingFactor::F_1_1, SamplingFactor::F_2_2] {
+            let mut encoder = Encoder::new(vec![], 90);
+            encoder.set_sampling_factor(sampling_factor);
+            encoder.init_components(super::JpegColorType::Ycbcr);
+
+            let old_blocks = encoder.encode_blocks::<_, super::DefaultOperations>(&image, &q_tables);
+            let mut iter_blocks = crate::quantized_block_iter::encode_blocks::<_, super::DefaultOperations>(
+                &image,
+                &q_tables,
+                &encoder.components,
+            );
+            let mut new_blocks: [Vec<super::AlignedBlock>; 4] =
+                core::array::from_fn(|_| Vec::new());
+
+            for (component_index, component_iter) in iter_blocks.iter_mut().enumerate() {
+                new_blocks[component_index].extend(component_iter.by_ref());
+            }
+
+            for (component_index, (old_component, new_component)) in old_blocks
+                .iter()
+                .zip(new_blocks.iter())
+                .enumerate()
+            {
+                assert_eq!(
+                    old_component.len(),
+                    new_component.len(),
+                    "different number of blocks for sampling {:?}, component {}",
+                    sampling_factor,
+                    component_index
+                );
+
+                for (block_index, (old_block, new_block)) in
+                    old_component.iter().zip(new_component.iter()).enumerate()
+                {
+                    assert_eq!(
+                        old_block.data,
+                        new_block.data,
+                        "different block for sampling {:?}, component {}, block {}",
+                        sampling_factor,
+                        component_index,
+                        block_index
+                    );
+                }
+            }
+        }
     }
 
     #[cfg(feature = "simd")]

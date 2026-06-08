@@ -1,9 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jpeg_encoder::{quantize_block_scalar, AlignedBlock, QuantizationTable, QuantizationTableType};
+use jpeg_encoder::{AlignedBlock, DefaultOperations, Operations, QuantizationTable, QuantizationTableType};
 use std::time::Duration;
 
 #[cfg(feature = "simd")]
-use jpeg_encoder::quantize_block_simd;
+use jpeg_encoder::SimdOperations;
 
 struct SimpleRng {
     state: u64,
@@ -44,7 +44,7 @@ fn quantize_all_scalar(
 ) {
     for (i, (input, output)) in inputs.iter().zip(outputs.iter_mut()).enumerate() {
         let table = if i & 1 == 0 { luma } else { chroma };
-        quantize_block_scalar(input, output, table);
+        <DefaultOperations as Operations>::quantize_block(input, output, table);
     }
 }
 
@@ -58,7 +58,7 @@ fn quantize_all_simd(
 ) {
     for (i, (input, output)) in inputs.iter().zip(outputs.iter_mut()).enumerate() {
         let table = if i & 1 == 0 { luma } else { chroma };
-        quantize_block_simd(input, output, table);
+        <SimdOperations as Operations>::quantize_block(input, output, table);
     }
 }
 

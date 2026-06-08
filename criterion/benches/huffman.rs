@@ -1,28 +1,20 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::{EncodingError, JfifWrite, JfifWriter};
+use jpeg_encoder::{encode_blocks, init_components, AlignedBlock, Component, EncodingError, HuffmanTable, ImageBuffer, JfifWrite, JfifWriter, QuantizationTable, QuantizationTableType, RgbImage, SamplingFactor};
 use std::time::Duration;
-
+use jpeg_encoder::huffman_sample_data::HuffmanSampleDataSet;
 
 fn criterion_benchmark(c: &mut Criterion) {
 
-    struct LocalWriter<'a> {
-        buf: &'a mut Vec<u8>,
-    }
+    let mut writer: JfifWriter<Vec<u8>> = JfifWriter::new(Vec::new());
 
-    impl<'a> JfifWrite for LocalWriter<'a> {
-        fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-            self.buf.extend_from_slice(buf);
-            Ok(())
-        }
-    }
+    let img = image::open("sample-image.png")
+        .expect("failed to open test image")
+        .into_rgb8();
+    let (width, height) = img.dimensions();
+    let image_buffer = RgbImage(img.as_raw(), width as u16, height as u16);
 
-    let mut buf = Vec::new();
-    let local_writer = LocalWriter { buf: &mut buf };
-    let mut writer: JfifWriter<LocalWriter> = JfifWriter::new(local_writer);
-
-    let samples_string = std::fs::read_to_string("huffman_data_set.json").unwrap();
-    let sample_set: jpeg_encoder::huffman_sample_data::HuffmanSampleDataSet = serde_json::from_str(&samples_string).unwrap();
+    let sample_set = HuffmanSampleDataSet::from_image(&image_buffer);
     
     let tables = sample_set.huffman_tables;
     let samples = sample_set.samples;
