@@ -675,7 +675,7 @@ impl<W: JfifWrite> Encoder<W> {
         self.writer
             .write_scan_header(&self.components.iter().collect::<Vec<_>>(), None)?;
 
-        let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
+        let (max_h_sampling, max_v_sampling) = get_max_sampling_size(&self.components);
 
         let width = image.width();
         let height = image.height();
@@ -956,7 +956,7 @@ impl<W: JfifWrite> Encoder<W> {
     ) -> [Vec<AlignedBlock>; 4] {
         let width = image.width();
         let height = image.height();
-        let (max_h_sampling, max_v_sampling) = self.get_max_sampling_size();
+        let (max_h_sampling, max_v_sampling) = get_max_sampling_size(&self.components);
 
         let num_cols = usize::from(width).div_ceil(8 * max_h_sampling) * max_h_sampling;
         let num_rows = usize::from(height).div_ceil(8 * max_v_sampling) * max_v_sampling;
