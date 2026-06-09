@@ -108,7 +108,7 @@ mod tests {
     use crate::huffman::HuffmanTable;
     use alloc::vec::Vec;
     use core::array;
-    use crate::{ColorType, Encoder, RgbImage, SamplingFactor};
+    use crate::{ColorType, DefaultBitStream, Encoder, RgbImage, SamplingFactor};
     use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
     use crate::tests::create_test_img_rgb;
     use crate::writer::get_code;
@@ -154,28 +154,17 @@ mod tests {
             (i32::from(min) + (self.next_u32() % span) as i32) as i16
         }
     }
-
-    struct LocalWriter<'a> {
-        buf: &'a mut Vec<u8>,
-    }
-
-    impl<'a> JfifWrite for LocalWriter<'a> {
-        fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-            self.buf.extend_from_slice(buf);
-            Ok(())
-        }
-    }
+    
 
     fn write_og(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
         let mut out = Vec::new();
         {
-            let local_writer = LocalWriter { buf: &mut out };
-            let mut writer = JfifWriter::new(local_writer);
+            let mut writer = JfifWriter::new(DefaultBitStream::new(&mut out));
 
-            writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
+            writer.w.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
             writer.write_ac_block_linear(block, START, END, table)?;
-            writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
-            writer.flush_bit_buffer()?;
+            writer.w.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
+            writer.w.flush_bit_buffer()?;
         }
         Ok(out)
     }
@@ -183,13 +172,12 @@ mod tests {
     fn write_simd(block: &AlignedBlock, table: &HuffmanTable) -> Result<Vec<u8>, EncodingError> {
         let mut out = Vec::new();
         {
-            let local_writer = LocalWriter { buf: &mut out };
-            let mut writer = JfifWriter::new(local_writer);
+            let mut writer = JfifWriter::new(DefaultBitStream::new(&mut out));
 
-            writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
+            writer.w.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
             writer.write_ac_block_simd(block, START, END, table)?;
-            writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
-            writer.flush_bit_buffer()?;
+            writer.w.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
+            writer.w.flush_bit_buffer()?;
         }
         Ok(out)
     }

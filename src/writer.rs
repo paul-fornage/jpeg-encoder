@@ -71,7 +71,7 @@ pub static ZIGZAG: [u8; 64] = [
 
 
 pub struct JfifWriter<W: BitStream> {
-    w: W,
+    pub(crate) w: W,
 }
 
 impl<W: BitStream> JfifWriter<W> {
@@ -80,7 +80,7 @@ impl<W: BitStream> JfifWriter<W> {
             w,
         }
     }
-    
+
     pub fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError> {
         self.w.finalize_bit_buffer()
     }

@@ -2,6 +2,7 @@ mod fdct;
 mod huffman;
 mod quantize;
 mod ycbcr;
+mod simd_vec_bitstream;
 
 use crate::encoder::{AlignedBlock, Operations};
 use crate::quantization::QuantizationTable;

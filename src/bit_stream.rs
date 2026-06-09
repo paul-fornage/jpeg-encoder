@@ -91,16 +91,6 @@ impl<W: JfifWrite> BitStream for DefaultBitStream<W> {
         self.w.write_all(buf)
     }
 
-    #[inline(always)]
-    fn write_u8(&mut self, value: u8) -> Result<(), EncodingError> {
-        self.w.write_all(&[value])
-    }
-
-    #[inline(always)]
-    fn write_u16(&mut self, value: u16) -> Result<(), EncodingError> {
-        self.w.write_all(&value.to_be_bytes())
-    }
-
     fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError> {
         self.write_bits(0x7F, 7)?;
         self.flush_bit_buffer()?;
@@ -141,8 +131,12 @@ impl<W: JfifWrite> BitStream for DefaultBitStream<W> {
 
 pub trait BitStream {
     fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError>;
-    fn write_u8(&mut self, value: u8) -> Result<(), EncodingError>;
-    fn write_u16(&mut self, value: u16) -> Result<(), EncodingError>;
+    fn write_u8(&mut self, value: u8) -> Result<(), EncodingError>{
+        self.write(&[value])
+    }
+    fn write_u16(&mut self, value: u16) -> Result<(), EncodingError>{
+        self.write(&value.to_be_bytes())
+    }
     fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError>;
     fn flush_bit_buffer(&mut self) -> Result<(), EncodingError>;
     // fn flush_byte_from_bit_buffer(&mut self, free_bits: i8) -> Result<(), EncodingError>;
