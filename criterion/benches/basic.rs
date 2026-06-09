@@ -1,25 +1,15 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use imgref::ImgVec;
-use jpeg_encoder::{EncodingError, JfifWrite};
+use jpeg_encoder::{DefaultBitStream, Encoder, EncodingError};
 use rgb::{Rgb, RGB8};
 use std::io::Cursor;
 use std::time::Duration;
 
 pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8) -> Result<Vec<u8>, EncodingError> {
-    struct LocalWriter<'a> {
-        buf: &'a mut Vec<u8>,
-    }
 
-    impl<'a> JfifWrite for LocalWriter<'a> {
-        fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-            self.buf.extend_from_slice(buf);
-            Ok(())
-        }
-    }
 
     let mut buf = Vec::with_capacity(img.buf().len());
-    let wrapper = LocalWriter { buf: &mut buf };
-    let mut encoder = jpeg_encoder::Encoder::new(wrapper, quality);
+    let mut encoder = Encoder::new(DefaultBitStream::new(&mut buf), quality);
     encoder.set_sampling_factor(jpeg_encoder::SamplingFactor::F_1_1);
     encoder.encode(
         bytemuck::cast_slice(img.buf()),

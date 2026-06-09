@@ -3,7 +3,7 @@ use imgref::ImgVec;
 
 #[cfg(feature = "simd")]
 use jpeg_encoder::{get_block_simd, RgbImageSimd, SimdOperations};
-use jpeg_encoder::{get_block_linear, DefaultOperations, ImageBuffer, QuantizationTable, QuantizationTableType, RgbImage};
+use jpeg_encoder::{get_block_linear, DefaultBitStream, DefaultOperations, ImageBuffer, QuantizationTable, QuantizationTableType, RgbImage};
 
 
 use std::time::Duration;
@@ -32,7 +32,7 @@ fn bench_misc(c: &mut Criterion) {
 
     let image_buffer = RgbImage(rgb_img_vec.buf(), width as u16, height as u16);
 
-    let mut encoder = jpeg_encoder::Encoder::new(std::io::sink(), 90);
+    let mut encoder = jpeg_encoder::Encoder::new(DefaultBitStream::new(std::io::sink()), 90);
     encoder.set_sampling_factor(jpeg_encoder::SamplingFactor::F_1_1);
 
     encoder.init_components(image_buffer.get_jpeg_color_type());

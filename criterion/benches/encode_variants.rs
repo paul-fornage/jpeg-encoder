@@ -1,28 +1,17 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jpeg_encoder::{AlignedBlock, DefaultOperations, EncodingError, JfifWrite, Operations, QuantizationTable, QuantizationTableType, SamplingFactor};
-use std::time::Duration;
-use image::codecs::jpeg;
+use criterion::{criterion_group, criterion_main, Criterion};
+use jpeg_encoder::{DefaultBitStream, EncodingError, SamplingFactor};
 use imgref::ImgVec;
-use rgb::{Rgb, RGB8};
 #[cfg(feature = "simd")]
 use jpeg_encoder::SimdOperations;
+use rgb::RGB8;
+use std::time::Duration;
 
 
 pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8, sampling: SamplingFactor, progressive: bool) -> Result<Vec<u8>, EncodingError> {
-    struct LocalWriter<'a> {
-        buf: &'a mut Vec<u8>,
-    }
 
-    impl<'a> JfifWrite for LocalWriter<'a> {
-        fn write_all(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-            self.buf.extend_from_slice(buf);
-            Ok(())
-        }
-    }
 
     let mut buf = Vec::with_capacity(img.buf().len());
-    let wrapper = LocalWriter { buf: &mut buf };
-    let mut encoder = jpeg_encoder::Encoder::new(wrapper, quality);
+    let mut encoder = jpeg_encoder::Encoder::new(DefaultBitStream::new(&mut buf), quality);
     encoder.set_sampling_factor(sampling);
     encoder.set_progressive(progressive);
     encoder.encode(

@@ -1,12 +1,12 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::{encode_blocks, init_components, AlignedBlock, Component, EncodingError, HuffmanTable, ImageBuffer, JfifWrite, JfifWriter, QuantizationTable, QuantizationTableType, RgbImage, SamplingFactor};
+use jpeg_encoder::{DefaultBitStream, JfifWriter, RgbImage};
 use std::time::Duration;
 use jpeg_encoder::huffman_sample_data::HuffmanSampleDataSet;
 
 fn criterion_benchmark(c: &mut Criterion) {
 
-    let mut writer: JfifWriter<Vec<u8>> = JfifWriter::new(Vec::new());
+    let mut writer = JfifWriter::new(DefaultBitStream::new(Vec::new()));
 
     let img = image::open("sample-image.png")
         .expect("failed to open test image")

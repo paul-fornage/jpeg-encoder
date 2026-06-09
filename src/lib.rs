@@ -4,7 +4,7 @@
 //! ```no_run
 //! # use jpeg_encoder::EncodingError;
 //! # pub fn main() -> Result<(), EncodingError> {
-//! use jpeg_encoder::{Encoder, ColorType};
+//! use jpeg_encoder::{Encoder, ColorType, DefaultBitStream};
 //!
 //! // An array with 4 pixels in RGB format.
 //! let data = [
@@ -16,7 +16,7 @@
 //!
 //! // Create new encoder that writes to an in-memory buffer with maximum quality (100)
 //! let mut output = Vec::new();
-//! let encoder = Encoder::new(&mut output, 100);
+//! let encoder = Encoder::new(DefaultBitStream::new(&mut output), 100);
 //!
 //! // Encode the data with dimension 2x2
 //! encoder.encode(&data, 2, 2, ColorType::Rgb)?;
@@ -46,12 +46,13 @@ mod writer;
 mod quantized_block_iter;
 #[cfg(any(feature = "benchmark", test))]
 pub mod huffman_sample_data;
+mod bit_stream;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
 pub use image_buffer::{ImageBuffer, cmyk_to_ycck, rgb_to_ycbcr};
 pub use quantization::QuantizationTableType;
-pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
+pub use writer::{PixelDensity, PixelDensityUnit};
 
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
@@ -83,6 +84,8 @@ pub use quantized_block_iter::encode_blocks;
 #[cfg(feature = "benchmark")]
 pub use writer::JfifWriter;
 
+pub use bit_stream::{DefaultBitStream, BitStream};
+
 #[cfg(any(feature = "benchmark", test))]
 pub use quantization::QuantizationTable;
 
@@ -110,6 +113,7 @@ mod tests {
     use alloc::boxed::Box;
     use alloc::vec;
     use alloc::vec::Vec;
+    use crate::bit_stream::DefaultBitStream;
 
     pub fn create_test_img_rgb() -> (Vec<u8>, u16, u16) {
         // Ensure size which which ensures an odd MCU count per row to test chroma subsampling
@@ -223,7 +227,7 @@ mod tests {
         let (data, width, height) = create_test_img_gray();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 100);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder
             .encode(&data, width, height, ColorType::Luma)
             .unwrap();
@@ -236,7 +240,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 100);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
@@ -249,7 +253,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 80);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 80);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
             .unwrap();
@@ -262,7 +266,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgba();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 80);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 80);
         encoder
             .encode(&data, width, height, ColorType::Rgba)
             .unwrap();
@@ -277,7 +281,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
 
         let table = QuantizationTableType::Custom(Box::new([
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -299,7 +303,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -313,7 +317,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -327,7 +331,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_4_1);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -341,7 +345,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_1_1);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -355,7 +359,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_1_4);
         encoder
             .encode(&data, width, height, ColorType::Rgb)
@@ -369,7 +373,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.set_progressive(true);
 
@@ -385,7 +389,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder.set_optimized_huffman_tables(true);
 
@@ -401,7 +405,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_1);
         encoder.set_progressive(true);
         encoder.set_optimized_huffman_tables(true);
@@ -418,7 +422,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 100);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder
             .encode(&data, width, height, ColorType::Cmyk)
             .unwrap();
@@ -431,7 +435,7 @@ mod tests {
         let (data, width, height) = create_test_img_cmyk();
 
         let mut result = Vec::new();
-        let encoder = Encoder::new(&mut result, 100);
+        let encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder
             .encode(&data, width, height, ColorType::CmykAsYcck)
             .unwrap();
@@ -444,7 +448,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
 
         encoder.set_restart_interval(32);
         const DRI_DATA: &[u8; 6] = b"\xFF\xDD\0\x04\0\x20";
@@ -468,7 +472,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_4_1);
 
         encoder.set_restart_interval(32);
@@ -493,7 +497,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 85);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 85);
         encoder.set_progressive(true);
 
         encoder.set_restart_interval(32);
@@ -518,7 +522,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
 
         encoder.add_app_segment(15, b"HOHOHO\0".to_vec()).unwrap();
 
@@ -541,7 +545,7 @@ mod tests {
         let (data, width, height) = create_test_img_rgb();
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
 
         let mut icc = Vec::with_capacity(128 * 1024);
 
@@ -576,7 +580,7 @@ mod tests {
         let data = vec![0xfb, 0x15, 0x15];
 
         let mut result = Vec::new();
-        let mut encoder = Encoder::new(&mut result, 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(&mut result), 100);
         encoder.set_sampling_factor(SamplingFactor::F_2_2);
         encoder.set_optimized_huffman_tables(true);
 

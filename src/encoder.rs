@@ -3,7 +3,7 @@ use crate::huffman::{CodingClass, HuffmanTable};
 use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
-use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
+use crate::writer::{JfifWriter, ZIGZAG};
 use crate::{EncodingError, PixelDensity};
 
 use alloc::vec;
@@ -20,7 +20,7 @@ use std::path::Path;
 
 #[cfg(feature = "simd")]
 use std::simd::{num::SimdUint, Simd};
-
+use crate::bit_stream::{BitStream, DefaultBitStream};
 use crate::quantized_block_iter::encode_blocks;
 
 /// # Color types used in encoding
@@ -232,7 +232,7 @@ macro_rules! add_component {
 }
 
 /// # The JPEG encoder
-pub struct Encoder<W: JfifWrite> {
+pub struct Encoder<W: BitStream> {
     writer: JfifWriter<W>,
     density: PixelDensity,
     quality: u8,
@@ -252,7 +252,7 @@ pub struct Encoder<W: JfifWrite> {
     app_segments: Vec<(u8, Vec<u8>)>,
 }
 
-impl<W: JfifWrite> Encoder<W> {
+impl<W: BitStream> Encoder<W> {
     /// Create a new encoder with the given quality
     ///
     /// The quality must be between 1 and 100 where 100 is the highest image quality.<br>
@@ -1053,7 +1053,7 @@ impl<W: JfifWrite> Encoder<W> {
 }
 
 #[cfg(feature = "std")]
-impl Encoder<BufWriter<File>> {
+impl Encoder<DefaultBitStream<BufWriter<File>>> {
     /// Create a new decoder that writes into a file
     ///
     /// See [new](Encoder::new) for further information.
@@ -1064,10 +1064,10 @@ impl Encoder<BufWriter<File>> {
     pub fn new_file<P: AsRef<Path>>(
         path: P,
         quality: u8,
-    ) -> Result<Encoder<BufWriter<File>>, EncodingError> {
+    ) -> Result<Encoder<DefaultBitStream<BufWriter<File>>>, EncodingError> {
         let file = File::create(path)?;
         let buf = BufWriter::new(file);
-        Ok(Self::new(buf, quality))
+        Ok(Self::new(DefaultBitStream::new(buf), quality))
     }
 }
 
@@ -1275,6 +1275,7 @@ mod tests {
     use crate::quantization::{QuantizationTable, QuantizationTableType};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
+    use crate::bit_stream::DefaultBitStream;
 
     #[test]
     fn test_get_num_bits() {
@@ -1315,7 +1316,7 @@ mod tests {
 
     #[test]
     fn test_set_progressive() {
-        let mut encoder = Encoder::new(vec![], 100);
+        let mut encoder = Encoder::new(DefaultBitStream::new(vec![]), 100);
         encoder.set_progressive(true);
         assert_eq!(encoder.progressive_scans(), Some(4));
 
@@ -1344,7 +1345,7 @@ mod tests {
         ];
 
         for sampling_factor in [SamplingFactor::F_1_1, SamplingFactor::F_2_2] {
-            let mut encoder = Encoder::new(vec![], 90);
+            let mut encoder = Encoder::new(DefaultBitStream::new(vec![]), 90);
             encoder.set_sampling_factor(sampling_factor);
             encoder.init_components(super::JpegColorType::Ycbcr);
 

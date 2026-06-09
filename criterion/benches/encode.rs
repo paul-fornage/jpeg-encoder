@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::{ColorType, Encoder, SamplingFactor};
+use jpeg_encoder::{ColorType, DefaultBitStream, Encoder, SamplingFactor};
 use std::time::Duration;
 
 fn create_bench_img() -> (Vec<u8>, u16, u16) {
@@ -55,30 +55,30 @@ fn create_bench_img() -> (Vec<u8>, u16, u16) {
 }
 
 fn encode_rgb_100(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let encoder = Encoder::new(res, 100);
+    let encoder = Encoder::new(DefaultBitStream::new(res), 100);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
 fn encode_rgb_4x1(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let mut encoder = Encoder::new(res, 80);
+    let mut encoder = Encoder::new(DefaultBitStream::new(res), 80);
     encoder.set_sampling_factor(SamplingFactor::F_4_1);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
 fn encode_rgb_progressive(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let mut encoder = Encoder::new(res, 80);
+    let mut encoder = Encoder::new(DefaultBitStream::new(res), 80);
     encoder.set_progressive(true);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
 fn encode_rgb_optimized(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let mut encoder = Encoder::new(res, 100);
+    let mut encoder = Encoder::new(DefaultBitStream::new(res), 100);
     encoder.set_optimized_huffman_tables(true);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();
 }
 
 fn encode_rgb_optimized_progressive(res: &mut Vec<u8>, data: &[u8], width: u16, height: u16) {
-    let mut encoder = Encoder::new(res, 100);
+    let mut encoder = Encoder::new(DefaultBitStream::new(res), 100);
     encoder.set_optimized_huffman_tables(true);
     encoder.set_progressive(true);
     encoder.encode(data, width, height, ColorType::Rgb).unwrap();

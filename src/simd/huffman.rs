@@ -1,10 +1,10 @@
 use crate::encoder::AlignedBlock;
 use crate::huffman::HuffmanTable;
 use crate::writer::{JfifWriter};
-use crate::{EncodingError, JfifWrite};
+use crate::{EncodingError, BitStream};
 use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
-impl<W: JfifWrite> JfifWriter<W> {
+impl<W: BitStream> JfifWriter<W> {
     pub fn write_ac_block_finish_first_n<const N: usize>(
         &mut self,
         block: &AlignedBlock,
