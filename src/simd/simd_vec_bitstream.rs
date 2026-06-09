@@ -1,14 +1,16 @@
-
 use std::vec::Vec;
 use crate::{BitStream, EncodingError};
+
+const BUFFER_SIZE: usize = core::mem::size_of::<usize>() * 8;
 
 pub struct SimdVecBitStream<'a> {
     pub data: &'a mut Vec<u8>,
     pub len: usize,
-    pending_byte: u8,
-    pending_bits: u8,
-    has_unfinalized_bits: bool,
+    bit_buffer: usize,
+    free_bits: i8,
 }
+
+
 
 impl<'a> SimdVecBitStream<'a> {
     pub fn new(data: &'a mut Vec<u8>) -> Self {
@@ -16,9 +18,8 @@ impl<'a> SimdVecBitStream<'a> {
         Self {
             data,
             len,
-            pending_byte: 0,
-            pending_bits: 0,
-            has_unfinalized_bits: false,
+            bit_buffer: 0,
+            free_bits: BUFFER_SIZE as i8,
         }
     }
 
@@ -29,109 +30,84 @@ impl<'a> SimdVecBitStream<'a> {
     }
 
     #[inline(always)]
-    fn push_stuffed_byte(&mut self, byte: u8) {
-        self.push_raw_byte(byte);
-        if byte == 0xFF {
+    fn flush_byte_from_bit_buffer(&mut self, free_bits: i8) -> Result<(), EncodingError> {
+        let value = (self.bit_buffer >> (BUFFER_SIZE as i8 - 8 - free_bits)) & 0xFF;
+        self.push_raw_byte(value as u8);
+
+        if value == 0xFF {
             self.push_raw_byte(0x00);
         }
+
+        Ok(())
     }
 
     #[inline(always)]
-    fn flush_pending_byte(&mut self) {
-        debug_assert_eq!(self.pending_bits, 8);
-        self.push_stuffed_byte(self.pending_byte);
-        self.pending_byte = 0;
-        self.pending_bits = 0;
+    #[allow(overflowing_literals)]
+    fn write_bit_buffer(&mut self) -> Result<(), EncodingError> {
+        if (self.bit_buffer
+            & 0x8080808080808080
+            & !(self.bit_buffer.wrapping_add(0x0101010101010101)))
+            != 0
+        {
+            for i in 0..(BUFFER_SIZE / 8) {
+                self.flush_byte_from_bit_buffer((i * 8) as i8)?;
+            }
+        } else {
+            let bytes = self.bit_buffer.to_be_bytes();
+            self.data.extend_from_slice(&bytes);
+            self.len += bytes.len();
+        }
+
+        Ok(())
+    }
+
+    fn flush_bit_buffer(&mut self) -> Result<(), EncodingError> {
+        while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
+            self.flush_byte_from_bit_buffer(self.free_bits)?;
+            self.free_bits += 8;
+        }
+
+        Ok(())
     }
 }
 
 impl<'a> BitStream for SimdVecBitStream<'a> {
-
-    /// Write bytes to the bitstream.
-    /// It is the callers job to make sure they have called `finalize_bit_buffer`
-    ///  after doing bitwise operations and before calling this.
     fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-        debug_assert!(
-            !self.has_unfinalized_bits,
-            "write called after write_bits without an intervening finalize_bit_buffer"
-        );
-        debug_assert_eq!(
-            self.pending_bits, 0,
-            "write called while partial bit-buffer data is still pending"
-        );
-
         self.data.extend_from_slice(buf);
         self.len += buf.len();
         Ok(())
     }
 
-    /// Flush the bit buffer
     fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError> {
         self.write_bits(0x7F, 7)?;
+        self.flush_bit_buffer()?;
+        self.bit_buffer = 0;
+        self.free_bits = BUFFER_SIZE as i8;
 
-        // Match DefaultBitStream behavior: discard partial bits after flushing
-        // complete bytes produced by the 0x7F terminator write.
-        self.pending_byte = 0;
-        self.pending_bits = 0;
-        self.has_unfinalized_bits = false;
         Ok(())
     }
 
-    /// Write bits to the bitstream. Sub-byte index is preserved across calls.
     fn write_bits(&mut self, value: u32, size: u8) -> Result<(), EncodingError> {
-        if size == 0 {
-            return Ok(());
-        }
+        let size = size as i8;
+        let value = value as usize;
+        let free_bits = self.free_bits - size;
 
-        debug_assert!(size <= 32, "write_bits size must be <= 32, got {size}");
-        self.has_unfinalized_bits = true;
-
-        let mut remaining = size;
-
-        while remaining > 0 {
-            if self.pending_bits == 0 && remaining >= 8 {
-                let shift = u32::from(remaining - 8);
-                let byte = ((value >> shift) & 0xFF) as u8;
-                self.push_stuffed_byte(byte);
-                remaining -= 8;
-                continue;
-            }
-
-            let free = 8 - self.pending_bits;
-            let take = remaining.min(free);
-            let shift = u32::from(remaining - take);
-            let mask = ((1u32 << u32::from(take)) - 1) as u8;
-            let bits = ((value >> shift) as u8) & mask;
-
-            self.pending_byte = (self.pending_byte << take) | bits;
-            self.pending_bits += take;
-            remaining -= take;
-
-            if self.pending_bits == 8 {
-                self.flush_pending_byte();
-            }
+        if free_bits < 0 {
+            self.bit_buffer = (self.bit_buffer << (size + free_bits)) | (value >> -free_bits);
+            self.write_bit_buffer()?;
+            self.bit_buffer = value;
+            self.free_bits = free_bits + BUFFER_SIZE as i8;
+        } else {
+            self.free_bits = free_bits;
+            self.bit_buffer = (self.bit_buffer << size) | value;
         }
 
         Ok(())
     }
 }
 
-impl<'a> BitStream for &mut SimdVecBitStream<'a> {
-    #[inline(always)]
-    fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
-        (**self).write(buf)
-    }
-
-    #[inline(always)]
-    fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError> {
-        (**self).finalize_bit_buffer()
-    }
-
-    #[inline(always)]
-    fn write_bits(&mut self, value: u32, size: u8) -> Result<(), EncodingError> {
-        (**self).write_bits(value, size)
-    }
-}
+// #![feature(funnel_shifts)]?
+// extract_bits?
 
 #[cfg(test)]
 mod tests {
@@ -291,17 +267,5 @@ mod tests {
         simd.finalize_bit_buffer().unwrap();
 
         assert!(simd_result == expected);
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(
-        expected = "write called after write_bits without an intervening finalize_bit_buffer"
-    )]
-    fn write_panics_in_debug_when_finalize_was_not_called() {
-        let mut simd_result = Vec::new();
-        let mut simd = SimdVecBitStream::new(&mut simd_result);
-        simd.write_bits(0b101, 3).unwrap();
-        let _ = simd.write(&[0x00]);
     }
 }

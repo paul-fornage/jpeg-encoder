@@ -25,6 +25,7 @@
 
 #![no_std]
 #![cfg_attr(feature = "simd", feature(portable_simd))]
+#![feature(uint_gather_scatter_bits)]
 #![forbid(unsafe_code)]
 
 #[cfg(feature = "std")]
