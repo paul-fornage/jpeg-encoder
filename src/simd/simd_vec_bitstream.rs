@@ -2,16 +2,16 @@
 use std::vec::Vec;
 use crate::{BitStream, EncodingError};
 
-pub struct SimdVecBitStream {
-    pub data: Vec<u8>,
+pub struct SimdVecBitStream<'a> {
+    pub data: &'a mut Vec<u8>,
     pub len: usize,
     pending_byte: u8,
     pending_bits: u8,
     has_unfinalized_bits: bool,
 }
 
-impl SimdVecBitStream {
-    pub fn new(data: Vec<u8>) -> Self {
+impl<'a> SimdVecBitStream<'a> {
+    pub fn new(data: &'a mut Vec<u8>) -> Self {
         let len = data.len();
         Self {
             data,
@@ -45,7 +45,7 @@ impl SimdVecBitStream {
     }
 }
 
-impl BitStream for SimdVecBitStream {
+impl<'a> BitStream for SimdVecBitStream<'a> {
 
     /// Write bytes to the bitstream.
     /// It is the callers job to make sure they have called `finalize_bit_buffer`
@@ -116,7 +116,7 @@ impl BitStream for SimdVecBitStream {
     }
 }
 
-impl BitStream for &mut SimdVecBitStream {
+impl<'a> BitStream for &mut SimdVecBitStream<'a> {
     #[inline(always)]
     fn write(&mut self, buf: &[u8]) -> Result<(), EncodingError> {
         (**self).write(buf)
@@ -188,22 +188,20 @@ mod tests {
         height: u16,
         cfg: EncodeConfig,
     ) -> Vec<u8> {
-        let mut stream = SimdVecBitStream::new(Vec::new());
-        {
-            let mut encoder = Encoder::new(&mut stream, cfg.quality);
-            if let Some(sampling) = cfg.sampling {
-                encoder.set_sampling_factor(sampling);
-            }
-            if cfg.progressive {
-                encoder.set_progressive(true);
-            }
-            encoder.set_optimized_huffman_tables(cfg.optimized_huffman);
-            if let Some(restart_interval) = cfg.restart_interval {
-                encoder.set_restart_interval(restart_interval);
-            }
-            encoder.encode(data, width, height, ColorType::Rgb).unwrap();
+        let mut out = Vec::new();
+        let mut encoder = Encoder::new(SimdVecBitStream::new(&mut out), cfg.quality);
+        if let Some(sampling) = cfg.sampling {
+            encoder.set_sampling_factor(sampling);
         }
-        stream.data
+        if cfg.progressive {
+            encoder.set_progressive(true);
+        }
+        encoder.set_optimized_huffman_tables(cfg.optimized_huffman);
+        if let Some(restart_interval) = cfg.restart_interval {
+            encoder.set_restart_interval(restart_interval);
+        }
+        encoder.encode(data, width, height, ColorType::Rgb).unwrap();
+        out
     }
 
     #[test]
@@ -262,9 +260,9 @@ mod tests {
         ];
 
         for cfg in cases {
-            let expected = encode_with_default(&data, width, height, cfg);
-            let actual = encode_with_simd_stream(&data, width, height, cfg);
-            assert_eq!(actual, expected, "bitstream mismatch for test case");
+            let expected = encode_with_default(&data[..], width, height, cfg);
+            let actual = encode_with_simd_stream(&data[..], width, height, cfg);
+            assert!(actual == expected, "bitstream mismatch for test case");
         }
     }
 
@@ -281,7 +279,8 @@ mod tests {
         default.write_bits(0x7F, 7).unwrap();
         default.finalize_bit_buffer().unwrap();
 
-        let mut simd = SimdVecBitStream::new(Vec::new());
+        let mut simd_result = Vec::new();
+        let mut simd = SimdVecBitStream::new(&mut simd_result);
         simd.write(&[0x12, 0x34]).unwrap();
         simd.write_bits(0xFF, 8).unwrap();
         simd.write_bits(0b101, 3).unwrap();
@@ -291,7 +290,7 @@ mod tests {
         simd.write_bits(0x7F, 7).unwrap();
         simd.finalize_bit_buffer().unwrap();
 
-        assert_eq!(simd.data, expected);
+        assert!(simd_result == expected);
     }
 
     #[cfg(debug_assertions)]
@@ -300,7 +299,8 @@ mod tests {
         expected = "write called after write_bits without an intervening finalize_bit_buffer"
     )]
     fn write_panics_in_debug_when_finalize_was_not_called() {
-        let mut simd = SimdVecBitStream::new(Vec::new());
+        let mut simd_result = Vec::new();
+        let mut simd = SimdVecBitStream::new(&mut simd_result);
         simd.write_bits(0b101, 3).unwrap();
         let _ = simd.write(&[0x00]);
     }

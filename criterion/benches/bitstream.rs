@@ -16,15 +16,14 @@ fn encode_default_vec(mut out: Vec<u8>, data: &[u8], width: u16, height: u16) ->
 }
 
 #[cfg(feature = "simd")]
-fn encode_simd_vec(out: Vec<u8>, data: &[u8], width: u16, height: u16) -> Vec<u8> {
-    let mut stream = SimdVecBitStream::new(out);
+fn encode_simd_vec(mut out: Vec<u8>, data: &[u8], width: u16, height: u16) -> Vec<u8> {
     {
-        let encoder = Encoder::new(&mut stream, 90);
+        let encoder = Encoder::new(SimdVecBitStream::new(&mut out), 90);
         encoder
             .encode(data, width, height, ColorType::Rgb)
             .expect("simd vec encode failed");
     }
-    stream.data
+    out
 }
 
 fn encode_default_sink(data: &[u8], width: u16, height: u16) {
@@ -43,13 +42,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     let height = height as u16;
     let data = img.as_raw();
 
-    let reference = encode_default_vec(Vec::new(), &data, width, height);
-    assert!(!reference.is_empty(), "reference jpeg should not be empty");
+    let reference = encode_default_vec(Vec::new(), &data[..], width, height);
+    assert_ne!(reference.len(), 0, "reference jpeg should not be empty");
 
     #[cfg(feature = "simd")]
-    assert_eq!(
-        encode_simd_vec(Vec::new(), &data, width, height),
-        reference,
+    assert!(
+        encode_simd_vec(Vec::new(), &data[..], width, height) == reference,
         "simd vec output should match default vec output"
     );
 
@@ -63,30 +61,30 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("simd_vec_preallocated", |b| {
         b.iter_batched(
             || preallocated_template.clone(),
-            |out| encode_simd_vec(out, &data, width, height),
+            |out| encode_simd_vec(out, &data[..], width, height),
             BatchSize::SmallInput,
         );
     });
 
     #[cfg(feature = "simd")]
     group.bench_function("simd_vec_new", |b| {
-        b.iter(|| encode_simd_vec(Vec::new(), &data, width, height));
+        b.iter(|| encode_simd_vec(Vec::new(), &data[..], width, height));
     });
 
     group.bench_function("default_vec_preallocated", |b| {
         b.iter_batched(
             || preallocated_template.clone(),
-            |out| encode_default_vec(out, &data, width, height),
+            |out| encode_default_vec(out, &data[..], width, height),
             BatchSize::SmallInput,
         );
     });
 
     group.bench_function("default_vec_new", |b| {
-        b.iter(|| encode_default_vec(Vec::new(), &data, width, height));
+        b.iter(|| encode_default_vec(Vec::new(), &data[..], width, height));
     });
 
     group.bench_function("default_sink", |b| {
-        b.iter(|| encode_default_sink(&data, width, height));
+        b.iter(|| encode_default_sink(&data[..], width, height));
     });
 
     group.finish();
