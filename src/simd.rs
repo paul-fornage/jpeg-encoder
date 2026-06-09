@@ -9,6 +9,7 @@ use crate::quantization::QuantizationTable;
 pub use fdct::fdct_simd;
 pub use quantize::quantize_block_simd;
 pub use ycbcr::*;
+pub use simd_vec_bitstream::SimdVecBitStream;
 
 pub struct SimdOperations;
 

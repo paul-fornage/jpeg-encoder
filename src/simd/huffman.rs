@@ -164,7 +164,7 @@ mod tests {
             writer.w.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
             writer.write_ac_block_linear(block, START, END, table)?;
             writer.w.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
-            writer.w.flush_bit_buffer()?;
+            writer.w.finalize_bit_buffer()?;
         }
         Ok(out)
     }
@@ -177,7 +177,7 @@ mod tests {
             writer.w.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
             writer.write_ac_block_simd(block, START, END, table)?;
             writer.w.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
-            writer.w.flush_bit_buffer()?;
+            writer.w.finalize_bit_buffer()?;
         }
         Ok(out)
     }

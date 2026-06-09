@@ -56,3 +56,7 @@ harness = false
 [[bench]]
 name = "encode_variants"
 harness = false
+
+[[bench]]
+name = "bitstream"
+harness = false

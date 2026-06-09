@@ -82,6 +82,15 @@ impl<W: JfifWrite> DefaultBitStream<W>{
             self.w.write_all(&self.bit_buffer.to_be_bytes())
         }
     }
+
+    fn flush_bit_buffer(&mut self) -> Result<(), EncodingError> {
+        while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
+            self.flush_byte_from_bit_buffer(self.free_bits)?;
+            self.free_bits += 8;
+        }
+
+        Ok(())
+    }
 }
 
 impl<W: JfifWrite> BitStream for DefaultBitStream<W> {
@@ -96,15 +105,6 @@ impl<W: JfifWrite> BitStream for DefaultBitStream<W> {
         self.flush_bit_buffer()?;
         self.bit_buffer = 0;
         self.free_bits = BUFFER_SIZE as i8;
-
-        Ok(())
-    }
-
-    fn flush_bit_buffer(&mut self) -> Result<(), EncodingError> {
-        while self.free_bits <= (BUFFER_SIZE as i8 - 8) {
-            self.flush_byte_from_bit_buffer(self.free_bits)?;
-            self.free_bits += 8;
-        }
 
         Ok(())
     }
@@ -138,8 +138,6 @@ pub trait BitStream {
         self.write(&value.to_be_bytes())
     }
     fn finalize_bit_buffer(&mut self) -> Result<(), EncodingError>;
-    fn flush_bit_buffer(&mut self) -> Result<(), EncodingError>;
-    // fn flush_byte_from_bit_buffer(&mut self, free_bits: i8) -> Result<(), EncodingError>;
-    // fn write_bit_buffer(&mut self) -> Result<(), EncodingError>;
+
     fn write_bits(&mut self, value: u32, size: u8) -> Result<(), EncodingError>;
 }
