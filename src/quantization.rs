@@ -1,6 +1,7 @@
 use crate::writer::ZIGZAG;
 use alloc::boxed::Box;
 use core::num::NonZeroU16;
+use crate::encoder::AlignedBlock;
 
 /// # Quantization table used for encoding
 ///
@@ -55,6 +56,22 @@ impl QuantizationTableType {
             VisualDetectionModel => 7,
             ImprovedDetectionModel => 8,
             Custom(_) => panic!("Custom types not supported"),
+        }
+    }
+}
+
+
+pub trait BlockQuantizer {
+    fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable);
+}
+
+pub struct DefaultBlockQuantizer;
+
+impl BlockQuantizer for DefaultBlockQuantizer {
+    fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable) {
+        for i in 0..64 {
+            let z = ZIGZAG[i] as usize & 0x3f;
+            q_block.data[i] = table.quantize(block.data[z], i);
         }
     }
 }
@@ -208,8 +225,11 @@ fn compute_reciprocal(divisor: u32) -> (i32, i32) {
 }
 
 pub struct QuantizationTable {
+    // IN NORMAL ORDER!
     table: [NonZeroU16; 64],
+    // IN ZIG ZAG ORDERING!
     reciprocals: [i32; 64],
+    // IN ZIG ZAG ORDERING!
     corrections: [i32; 64],
 }
 
@@ -289,7 +309,6 @@ impl QuantizationTable {
     }
 
     #[inline]
-    /// PRE ZIG ZAG IDX!!
     pub fn quantize(&self, in_value: i16, index: usize) -> i16 {
         let value = in_value as i32;
 

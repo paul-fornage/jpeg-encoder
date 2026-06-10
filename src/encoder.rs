@@ -1,9 +1,12 @@
-use crate::fdct::fdct;
+use crate::fdct::{DefaultFDCT, FDCT};
+use crate::quantization::{DefaultBlockQuantizer, BlockQuantizer};
+use crate::huffman::encoder::{DefaultHuffmanEncoder, HuffmanEncoder};
+use crate::quantized_block_iter::encode_blocks_iter;
 use crate::huffman::{CodingClass, HuffmanTable};
 use crate::image_buffer::*;
 use crate::marker::Marker;
 use crate::quantization::{QuantizationTable, QuantizationTableType};
-use crate::writer::{JfifWrite, JfifWriter, ZIGZAG};
+use crate::writer::{JfifWrite, JfifWriter};
 use crate::{EncodingError, PixelDensity};
 
 use alloc::vec;
@@ -19,9 +22,11 @@ use std::fs::File;
 use std::path::Path;
 
 #[cfg(feature = "simd")]
+use crate::simd::{BgrImageSimd, BgraImageSimd, RgbaImageSimd, SimdBlockQuantizer, SimdHuffmanEncoder};
+#[cfg(feature = "simd")]
 use std::simd::{num::SimdUint, Simd};
 
-use crate::quantized_block_iter::encode_blocks;
+
 
 /// # Color types used in encoding
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -481,27 +486,31 @@ impl<W: JfifWrite> Encoder<W> {
 
             match color_type {
                 ColorType::Luma => {
-                    self.encode_image_internal::<_, SimdOperations>(GrayImage(data, width, height))
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(GrayImage(data, width, height))
                 }
-                ColorType::Rgb => self
-                    .encode_image_internal::<_, SimdOperations>(RgbImageSimd(data, width, height)),
-                ColorType::Rgba => self
-                    .encode_image_internal::<_, SimdOperations>(RgbaImageSimd(data, width, height)),
-                ColorType::Bgr => self
-                    .encode_image_internal::<_, SimdOperations>(BgrImageSimd(data, width, height)),
-                ColorType::Bgra => self
-                    .encode_image_internal::<_, SimdOperations>(BgraImageSimd(data, width, height)),
+                ColorType::Rgb => {
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(RgbImageSimd(data, width, height))
+                },
+                ColorType::Rgba => {
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(RgbaImageSimd(data, width, height))
+                },
+                ColorType::Bgr => {
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(BgrImageSimd(data, width, height))
+                },
+                ColorType::Bgra => {
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(BgraImageSimd(data, width, height))
+                },
                 ColorType::Ycbcr => {
-                    self.encode_image_internal::<_, SimdOperations>(YCbCrImage(data, width, height))
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(YCbCrImage(data, width, height))
                 }
                 ColorType::Cmyk => {
-                    self.encode_image_internal::<_, SimdOperations>(CmykImage(data, width, height))
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(CmykImage(data, width, height))
                 }
-                ColorType::CmykAsYcck => self.encode_image_internal::<_, SimdOperations>(
-                    CmykAsYcckImage(data, width, height),
-                ),
+                ColorType::CmykAsYcck => {
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(CmykAsYcckImage(data, width, height))
+                },
                 ColorType::Ycck => {
-                    self.encode_image_internal::<_, SimdOperations>(YcckImage(data, width, height))
+                    self.encode_image_internal::<_, SimdFDCT, SimdBlockQuantizer, SimdHuffmanEncoder>(YcckImage(data, width, height))
                 }
             }
         }
@@ -509,34 +518,38 @@ impl<W: JfifWrite> Encoder<W> {
         #[cfg(not(feature = "simd"))]
         {
             match color_type {
-                ColorType::Luma => self.encode_image(GrayImage(data, width, height))?,
-                ColorType::Rgb => self.encode_image(RgbImage(data, width, height))?,
-                ColorType::Rgba => self.encode_image(RgbaImage(data, width, height))?,
-                ColorType::Bgr => self.encode_image(BgrImage(data, width, height))?,
-                ColorType::Bgra => self.encode_image(BgraImage(data, width, height))?,
-                ColorType::Ycbcr => self.encode_image(YCbCrImage(data, width, height))?,
-                ColorType::Cmyk => self.encode_image(CmykImage(data, width, height))?,
-                ColorType::CmykAsYcck => self.encode_image(CmykAsYcckImage(data, width, height))?,
-                ColorType::Ycck => self.encode_image(YcckImage(data, width, height))?,
+                ColorType::Luma => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(GrayImage(data, width, height))
+                }
+                ColorType::Rgb => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(RgbImage(data, width, height))
+                },
+                ColorType::Rgba => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(RgbaImage(data, width, height))
+                },
+                ColorType::Bgr => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(BgrImage(data, width, height))
+                },
+                ColorType::Bgra => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(BgraImage(data, width, height))
+                },
+                ColorType::Ycbcr => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(YCbCrImage(data, width, height))
+                }
+                ColorType::Cmyk => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(CmykImage(data, width, height))
+                }
+                ColorType::CmykAsYcck => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(CmykAsYcckImage(data, width, height))
+                },
+                ColorType::Ycck => {
+                    self.encode_image_internal::<_, DefaultFDCT, DefaultBlockQuantizer, DefaultHuffmanEncoder>(YcckImage(data, width, height))
+                }
             }
-
-            Ok(())
         }
     }
 
-    /// Encode an image
-    pub fn encode_image<I: ImageBuffer>(self, image: I) -> Result<(), EncodingError> {
-        #[cfg(feature = "simd")]
-        {
-            self.encode_image_internal::<_, crate::simd::SimdOperations>(image)
-        }
-        #[cfg(not(feature = "simd"))]
-        {
-            self.encode_image_internal::<_, DefaultOperations>(image)
-        }
-    }
-
-    fn encode_image_internal<I: ImageBuffer, OP: Operations>(
+    fn encode_image_internal<I: ImageBuffer, F: FDCT, Q: BlockQuantizer, H: HuffmanEncoder>(
         mut self,
         image: I,
     ) -> Result<(), EncodingError> {
@@ -576,11 +589,11 @@ impl<W: JfifWrite> Encoder<W> {
         }
 
         if let Some(scans) = self.progressive_scans {
-            self.encode_image_progressive::<_, OP>(image, scans, &q_tables)?;
+            self.encode_image_progressive::<_, F, Q>(image, scans, &q_tables)?;
         } else if self.optimize_huffman_table || !self.sampling_factor.supports_interleaved() {
-            self.encode_image_sequential::<_, OP>(image, &q_tables)?;
+            self.encode_image_sequential::<_, F, Q, H>(image, &q_tables)?;
         } else {
-            self.encode_image_interleaved::<_, OP>(image, &q_tables)?;
+            self.encode_image_interleaved::<_, F, Q, H>(image, &q_tables)?;
         }
 
         self.writer.write_marker(Marker::EOI)?;
@@ -634,7 +647,7 @@ impl<W: JfifWrite> Encoder<W> {
     /// Encode all components with one scan
     ///
     /// This is only valid for sampling factors of 1 and 2
-    fn encode_image_interleaved<I: ImageBuffer, OP: Operations>(
+    fn encode_image_interleaved<I: ImageBuffer, F: FDCT, Q: BlockQuantizer, H: HuffmanEncoder>(
         &mut self,
         image: I,
         q_tables: &[QuantizationTable; 2],
@@ -712,16 +725,17 @@ impl<W: JfifWrite> Encoder<W> {
                                 buffer_width,
                             );
 
-                            OP::fdct(&mut block);
+                            F::fdct(&mut block);
 
                             let mut q_block = AlignedBlock::default();
 
-                            OP::quantize_block(
+                            Q::quantize_block(
                                 &block,
                                 &mut q_block,
                                 &q_tables[component.quantization_table as usize],
                             );
-                            self.writer.write_block(
+                            H::write_block(
+                                &mut self.writer,
                                 &q_block,
                                 prev_dc[i],
                                 &self.huffman_tables[component.dc_huffman_table as usize].0,
@@ -750,12 +764,12 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
     /// Encode components with one scan per component
-    fn encode_image_sequential<I: ImageBuffer, OP: Operations>(
+    fn encode_image_sequential<I: ImageBuffer, F: FDCT, Q: BlockQuantizer, H: HuffmanEncoder>(
         &mut self,
         image: I,
         q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks::<_, OP>(&image, q_tables);
+        let blocks = self.encode_blocks::<_, F, Q>(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
@@ -781,7 +795,8 @@ impl<W: JfifWrite> Encoder<W> {
                     prev_dc = 0;
                 }
 
-                self.writer.write_block(
+                H::write_block(
+                    &mut self.writer,
                     block,
                     prev_dc,
                     &self.huffman_tables[component.dc_huffman_table as usize].0,
@@ -809,13 +824,13 @@ impl<W: JfifWrite> Encoder<W> {
     /// Encode image in progressive mode
     ///
     /// This only support spectral selection for now
-    fn encode_image_progressive<I: ImageBuffer, OP: Operations>(
+    fn encode_image_progressive<I: ImageBuffer, F: FDCT, Q: BlockQuantizer>(
         &mut self,
         image: I,
         scans: u8,
         q_tables: &[QuantizationTable; 2],
     ) -> Result<(), EncodingError> {
-        let blocks = self.encode_blocks::<_, OP>(&image, q_tables);
+        let blocks = self.encode_blocks::<_, F, Q>(&image, q_tables);
 
         if self.optimize_huffman_table {
             self.optimize_huffman_table(&blocks);
@@ -843,7 +858,8 @@ impl<W: JfifWrite> Encoder<W> {
                     prev_dc = 0;
                 }
 
-                self.writer.write_dc(
+                DefaultHuffmanEncoder::write_dc(
+                    &mut self.writer,
                     block.data[0],
                     prev_dc,
                     &self.huffman_tables[component.dc_huffman_table as usize].0,
@@ -893,7 +909,8 @@ impl<W: JfifWrite> Encoder<W> {
                             .write_marker(Marker::RST((restarts % 8) as u8))?;
                     }
 
-                    self.writer.write_ac_block_linear(
+                    DefaultHuffmanEncoder::write_ac_block(
+                        &mut self.writer,
                         block,
                         start,
                         end,
@@ -917,7 +934,7 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
-    pub fn encode_blocks<I: ImageBuffer, OP: Operations>(
+    pub fn encode_blocks<I: ImageBuffer, F: FDCT, Q: BlockQuantizer>(
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
@@ -980,11 +997,11 @@ impl<W: JfifWrite> Encoder<W> {
                         buffer_width,
                     );
 
-                    OP::fdct(&mut block);
+                    F::fdct(&mut block);
 
                     let mut q_block = AlignedBlock::default();
 
-                    OP::quantize_block(
+                    Q::quantize_block(
                         &block,
                         &mut q_block,
                         &q_tables[component.quantization_table as usize],
@@ -998,12 +1015,12 @@ impl<W: JfifWrite> Encoder<W> {
     }
 
 
-    pub fn encode_blocks_iter<I: ImageBuffer, OP: Operations>(
+    pub fn encode_blocks_iter<I: ImageBuffer, F: FDCT, Q: BlockQuantizer>(
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
     ) -> [Vec<AlignedBlock>; 4] {
-        let iters = encode_blocks::<I, OP>(image, q_tables, &self.components);
+        let iters = encode_blocks_iter::<I, F, Q>(image, q_tables, &self.components);
         let mut fellas = iters.into_iter().map(|iter| {
             iter.collect::<Vec<AlignedBlock>>()
         }).collect::<heapless::Vec<Vec<AlignedBlock>, 4>>();
@@ -1325,34 +1342,17 @@ fn get_num_bits(mut value: i16) -> u8 {
     num_bits
 }
 
-pub trait Operations {
-    #[inline(always)]
-    fn fdct(data: &mut AlignedBlock) {
-        fdct(data);
-    }
 
-    #[inline(always)]
-    fn quantize_block(block: &AlignedBlock, q_block: &mut AlignedBlock, table: &QuantizationTable) {
-        for i in 0..64 {
-            let z = ZIGZAG[i] as usize & 0x3f;
-            q_block.data[i] = table.quantize(block.data[z], i);
-        }
-    }
-}
 
-#[cfg_attr(feature = "simd", allow(dead_code))]
-pub struct DefaultOperations;
-
-impl Operations for DefaultOperations {}
 
 #[cfg(test)]
 mod tests {
     use alloc::vec;
     use alloc::vec::Vec;
-
+    use super::*;
     use crate::encoder::get_num_bits;
     use crate::image_buffer::RgbImage;
-    use crate::quantization::{QuantizationTable, QuantizationTableType};
+    use crate::quantization::{DefaultBlockQuantizer, QuantizationTable, QuantizationTableType};
     use crate::writer::get_code;
     use crate::{Encoder, SamplingFactor};
 
@@ -1428,13 +1428,13 @@ mod tests {
             encoder_old.set_sampling_factor(sampling_factor);
             encoder_old.init_components(super::JpegColorType::Ycbcr);
 
-            let old_blocks = encoder_old.encode_blocks::<_, super::DefaultOperations>(&image, &q_tables);
+            let old_blocks = encoder_old.encode_blocks::<_, DefaultFDCT, DefaultBlockQuantizer>(&image, &q_tables);
 
             let mut encoder_new = Encoder::new(vec![], 90);
             encoder_new.set_sampling_factor(sampling_factor);
             encoder_new.init_components(super::JpegColorType::Ycbcr);
 
-            let iter_blocks = encoder_new.encode_blocks_iter::<_, super::DefaultOperations>(&image, &q_tables);
+            let iter_blocks = encoder_new.encode_blocks_iter::<_, DefaultFDCT, DefaultBlockQuantizer>(&image, &q_tables);
 
             old_blocks
                 .iter()

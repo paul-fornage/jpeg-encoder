@@ -5,6 +5,10 @@
 
 use alloc::vec::Vec;
 
+#[cfg(any(feature = "benchmark", test))]
+pub mod huffman_sample_data;
+pub mod encoder;
+
 #[derive(Copy, Clone, Debug)]
 pub enum CodingClass {
     Dc = 0,

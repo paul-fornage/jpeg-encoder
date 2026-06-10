@@ -1,10 +1,10 @@
 use crate::huffman::HuffmanTable;
-use crate::{encode_blocks, init_components, AlignedBlock, Component, ImageBuffer, QuantizationTable, QuantizationTableType, SamplingFactor, DefaultOperations};
+use crate::{init_components, AlignedBlock, Component, ImageBuffer, QuantizationTable, QuantizationTableType, SamplingFactor};
 use alloc::vec::Vec;
 use core::fmt::{Debug, Formatter};
-
-#[cfg(feature = "simd")]
-use crate::SimdOperations;
+use crate::quantization::BlockQuantizer;
+use crate::quantized_block_iter::encode_blocks_iter;
+use crate::fdct::FDCT;
 
 #[derive(PartialEq, Debug)]
 pub struct HuffmanSampleDataSet {
@@ -60,7 +60,7 @@ impl Debug for HuffmanTable {
 }
 
 impl HuffmanSampleDataSet{
-    pub fn from_image<I: ImageBuffer>(image: &I) -> Self {
+    pub fn from_image<I: ImageBuffer, F: FDCT, Q: BlockQuantizer>(image: &I) -> Self {
 
         let q_tables = [
             QuantizationTable::new_with_quality(&QuantizationTableType::Default, 90, true),
@@ -71,12 +71,7 @@ impl HuffmanSampleDataSet{
         let mut components: Vec<Component> = Vec::new();
         init_components(&mut components, SamplingFactor::F_1_1, image.get_jpeg_color_type());
 
-        #[cfg(feature = "simd")]
-        let q_block_iters = encode_blocks::<I, SimdOperations>(&image, &q_tables, &components);
-        #[cfg(not(feature = "simd"))]
-        let q_block_iters = encode_blocks::<I, DefaultOperations>(&image, &q_tables, &components);
-        let q_block_buffers = q_block_iters.into_iter().map(|component| component.collect()).collect::<Vec<Vec<AlignedBlock>>>();
-
+        let q_block_iters = encode_blocks_iter::<I, F, Q>(&image, &q_tables, &components);
 
         let huffman_tables = [(
             HuffmanTable::default_luma_dc(),
@@ -87,7 +82,7 @@ impl HuffmanSampleDataSet{
         )];
 
         let mut samples: Vec<HuffmanSampleData> = Vec::new();
-        for (q_block_buffer, component) in q_block_buffers.into_iter().zip(components) {
+        for (q_block_buffer, component) in q_block_iters.into_iter().zip(components) {
             let mut last_dc = 0;
             for q_block in q_block_buffer{
                 samples.push(HuffmanSampleData {

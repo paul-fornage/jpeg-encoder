@@ -4,7 +4,7 @@ use std::simd::num::SimdInt;
 use std::simd::prelude::Select;
 
 use crate::encoder::AlignedBlock;
-use crate::quantization::QuantizationTable;
+use crate::quantization::{BlockQuantizer, QuantizationTable};
 use crate::writer::ZIGZAG;
 
 const BLOCK_SIZE: usize = 64;
@@ -14,65 +14,66 @@ const SIMD_I32_WIDTH: usize = SIMD_BIT_WIDTH / 32;
 
 type SimdI32 = Simd<i32, SIMD_I32_WIDTH>;
 
-#[inline(always)]
-const fn zigzag_index(index: usize) -> usize {
-    ZIGZAG[index] as usize
-}
-
 const SIMD_PER_QUANT: usize = BLOCK_SIZE / SIMD_I32_WIDTH;
 
-#[inline(always)]
-pub fn quantize_block_simd(
-    block: &AlignedBlock,
-    q_block: &mut AlignedBlock,
-    table: &QuantizationTable,
-) {
-    let reciprocals = table.reciprocals();
-    let corrections = table.corrections();
+pub struct SimdBlockQuantizer;
 
-    let data: &mut [i16; BLOCK_SIZE] = &mut q_block.data;
-    let chunks = data.chunks_exact_mut(SIMD_I32_WIDTH);
-    assert_eq!(
-        SIMD_PER_QUANT * SIMD_I32_WIDTH,
-        BLOCK_SIZE,
-        "Block data must be a multiple of SIMD_I32_WIDTH"
-    );
-    assert_eq!(
-        chunks.len(),
-        SIMD_PER_QUANT,
-        "Block data must be a multiple of SIMD_I32_WIDTH"
-    );
+impl BlockQuantizer for SimdBlockQuantizer {
+    #[inline(always)]
+    fn quantize_block(
+        block: &AlignedBlock,
+        q_block: &mut AlignedBlock,
+        table: &QuantizationTable,
+    ) {
+        let reciprocals = table.reciprocals();
+        let corrections = table.corrections();
 
-    for (chunk_idx, out_chunk) in chunks.enumerate() {
-        let base = chunk_idx * SIMD_I32_WIDTH;
+        let data: &mut [i16; BLOCK_SIZE] = &mut q_block.data;
+        let chunks = data.chunks_exact_mut(SIMD_I32_WIDTH);
+        assert_eq!(
+            SIMD_PER_QUANT * SIMD_I32_WIDTH,
+            BLOCK_SIZE,
+            "Block data must be a multiple of SIMD_I32_WIDTH"
+        );
+        assert_eq!(
+            chunks.len(),
+            SIMD_PER_QUANT,
+            "Block data must be a multiple of SIMD_I32_WIDTH"
+        );
 
-        let values = SimdI32::from_array(core::array::from_fn(|lane| {
-            let z = zigzag_index(base + lane);
-            i32::from(block.data[z])
-        }));
+        for (chunk_idx, out_chunk) in chunks.enumerate() {
+            let base = chunk_idx * SIMD_I32_WIDTH;
 
-        let reciprocal = SimdI32::from_slice(reciprocals[base..base + SIMD_I32_WIDTH].into());
+            let values = SimdI32::from_array(core::array::from_fn(|lane| {
+                let z = ZIGZAG[base + lane] as usize;
+                i32::from(block.data[z])
+            }));
 
-        let correction = SimdI32::from_slice(corrections[base..base + SIMD_I32_WIDTH].into());
+            let reciprocal = SimdI32::from_slice(reciprocals[base..base + SIMD_I32_WIDTH].into());
 
-        let mut product = (values.abs() + correction) * reciprocal;
-        product >>= SimdI32::splat(SHIFT);
+            let correction = SimdI32::from_slice(corrections[base..base + SIMD_I32_WIDTH].into());
 
-        let result = values.simd_lt(SimdI32::splat(0)).select(-product, product);
+            let mut product = (values.abs() + correction) * reciprocal;
+            product >>= SimdI32::splat(SHIFT);
 
-        result.cast::<i16>().copy_to_slice(out_chunk);
+            let result = values.simd_lt(SimdI32::splat(0)).select(-product, product);
+
+            result.cast::<i16>().copy_to_slice(out_chunk);
+        }
     }
 }
+
+
 
 // before dev machine: quantize/quantize simd  time:   [128.01 µs 128.21 µs 128.43 µs]
 // after dev machine: quantize/quantize simd  time:   [109.01 µs 109.14 µs 109.31 µs]
 
 #[cfg(test)]
 mod tests {
-    use super::quantize_block_simd;
-    use crate::encoder::{AlignedBlock, Operations};
-    use crate::quantization::{QuantizationTable, QuantizationTableType};
-    use crate::simd::SimdOperations;
+    use super::SimdBlockQuantizer;
+    use crate::encoder::{AlignedBlock};
+    use crate::quantization::{BlockQuantizer, DefaultBlockQuantizer, QuantizationTable, QuantizationTableType};
+
 
     const INPUT: [i16; 64] = [
         21, 28, 11, 24, -45, -37, -55, -103, 38, -8, 31, 17, -19, 49, 15, -76, 22, -48, -36, -31,
@@ -89,12 +90,16 @@ mod tests {
         let mut scalar = AlignedBlock::default();
         let mut simd = AlignedBlock::default();
 
-        <crate::encoder::DefaultOperations as Operations>::quantize_block(
+        DefaultBlockQuantizer::quantize_block(
             &block,
             &mut scalar,
             &table,
         );
-        quantize_block_simd(&block, &mut simd, &table);
+        SimdBlockQuantizer::quantize_block(
+            &block,
+            &mut simd,
+            &table,
+        );
 
         assert_eq!(simd.data, scalar.data);
     }
@@ -107,12 +112,16 @@ mod tests {
         let mut scalar = AlignedBlock::default();
         let mut simd = AlignedBlock::default();
 
-        <crate::encoder::DefaultOperations as Operations>::quantize_block(
+        DefaultBlockQuantizer::quantize_block(
             &block,
             &mut scalar,
             &table,
         );
-        <SimdOperations as Operations>::quantize_block(&block, &mut simd, &table);
+        SimdBlockQuantizer::quantize_block(
+            &block,
+            &mut simd,
+            &table,
+        );
 
         assert_eq!(simd.data, scalar.data);
     }

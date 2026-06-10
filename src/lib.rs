@@ -44,17 +44,17 @@ mod quantization;
 mod simd;
 mod writer;
 mod quantized_block_iter;
-#[cfg(any(feature = "benchmark", test))]
-pub mod huffman_sample_data;
 
 pub use encoder::{ColorType, Encoder, JpegColorType, SamplingFactor};
 pub use error::EncodingError;
-pub use image_buffer::{ImageBuffer, cmyk_to_ycck, rgb_to_ycbcr};
+pub use image_buffer::{cmyk_to_ycck, rgb_to_ycbcr, ImageBuffer};
 pub use quantization::QuantizationTableType;
 pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 
 #[cfg(feature = "benchmark")]
-pub use fdct::fdct;
+pub use fdct::{DefaultFDCT, FDCT};
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::SimdFDCT;
 
 #[cfg(any(feature = "benchmark", test))]
 pub use image_buffer::RgbImage;
@@ -68,17 +68,11 @@ pub use encoder::get_block_simd;
 #[cfg(feature = "benchmark")]
 pub use encoder::get_block_linear;
 
-#[cfg(feature = "benchmark")]
-pub use encoder::Operations;
+
 
 #[cfg(any(feature = "benchmark", test))]
-pub use encoder::{Component, init_components};
+pub use encoder::{init_components, Component};
 
-#[cfg(any(feature = "benchmark", test))]
-pub use encoder::DefaultOperations;
-
-#[cfg(any(feature = "benchmark", test))]
-pub use quantized_block_iter::encode_blocks;
 
 #[cfg(feature = "benchmark")]
 pub use writer::JfifWriter;
@@ -89,17 +83,12 @@ pub use quantization::QuantizationTable;
 #[cfg(feature = "benchmark")]
 pub use huffman::HuffmanTable;
 
-#[cfg(all(feature = "benchmark", feature = "simd"))]
-pub use simd::fdct_simd;
 
-#[cfg(all(feature = "benchmark", feature = "simd"))]
-pub use simd::quantize_block_simd;
 
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::RgbImageSimd;
 
-#[cfg(all(any(feature = "benchmark", test), feature = "simd"))]
-pub use simd::SimdOperations;
+
 
 #[cfg(test)]
 mod tests {

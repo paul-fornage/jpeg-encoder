@@ -1,6 +1,7 @@
 use std::simd::Simd;
 
 use crate::encoder::AlignedBlock;
+use crate::fdct::FDCT;
 
 const LANES: usize = 8;
 
@@ -104,55 +105,59 @@ fn fdct_pass(first_pass: bool, input: [Simd<i32, LANES>; 8]) -> [Simd<i32, LANES
     [out0, out1, out2, out3, out4, out5, out6, out7]
 }
 
-#[inline(always)]
-pub fn fdct_simd(data: &mut AlignedBlock) {
-    let first_pass = fdct_pass(
-        true,
-        [
-            load_col(&data.data, 0),
-            load_col(&data.data, 1),
-            load_col(&data.data, 2),
-            load_col(&data.data, 3),
-            load_col(&data.data, 4),
-            load_col(&data.data, 5),
-            load_col(&data.data, 6),
-            load_col(&data.data, 7),
-        ],
-    );
+pub struct SimdFDCT;
 
-    let mut data2 = [0i32; 64];
-    for (x, values) in first_pass.into_iter().enumerate() {
-        for (y, value) in values.to_array().into_iter().enumerate() {
-            data2[y * 8 + x] = value;
+impl FDCT for SimdFDCT{
+    fn fdct(data: &mut AlignedBlock) {
+        let first_pass = fdct_pass(
+            true,
+            [
+                load_col(&data.data, 0),
+                load_col(&data.data, 1),
+                load_col(&data.data, 2),
+                load_col(&data.data, 3),
+                load_col(&data.data, 4),
+                load_col(&data.data, 5),
+                load_col(&data.data, 6),
+                load_col(&data.data, 7),
+            ],
+        );
+
+        let mut data2 = [0i32; 64];
+        for (x, values) in first_pass.into_iter().enumerate() {
+            for (y, value) in values.to_array().into_iter().enumerate() {
+                data2[y * 8 + x] = value;
+            }
         }
-    }
 
-    let second_pass = fdct_pass(
-        false,
-        [
-            load_row(&data2, 0),
-            load_row(&data2, 1),
-            load_row(&data2, 2),
-            load_row(&data2, 3),
-            load_row(&data2, 4),
-            load_row(&data2, 5),
-            load_row(&data2, 6),
-            load_row(&data2, 7),
-        ],
-    );
+        let second_pass = fdct_pass(
+            false,
+            [
+                load_row(&data2, 0),
+                load_row(&data2, 1),
+                load_row(&data2, 2),
+                load_row(&data2, 3),
+                load_row(&data2, 4),
+                load_row(&data2, 5),
+                load_row(&data2, 6),
+                load_row(&data2, 7),
+            ],
+        );
 
-    for (y, values) in second_pass.into_iter().enumerate() {
-        for (x, value) in values.to_array().into_iter().enumerate() {
-            data.data[y * 8 + x] = value as i16;
+        for (y, values) in second_pass.into_iter().enumerate() {
+            for (x, value) in values.to_array().into_iter().enumerate() {
+                data.data[y * 8 + x] = value as i16;
+            }
         }
     }
 }
 
+
 #[cfg(test)]
 mod tests {
-    use super::fdct_simd;
+    use super::SimdFDCT;
     use crate::encoder::AlignedBlock;
-    use crate::fdct::fdct;
+    use crate::fdct::{DefaultFDCT, FDCT};
 
     const INPUT1: [i16; 64] = [
         -70, -71, -70, -68, -67, -67, -67, -67, -72, -73, -72, -70, -69, -69, -68, -69, -75, -76,
@@ -174,8 +179,8 @@ mod tests {
             let mut scalar = AlignedBlock::new(input);
             let mut simd = AlignedBlock::new(input);
 
-            fdct(&mut scalar);
-            fdct_simd(&mut simd);
+            DefaultFDCT::fdct(&mut scalar);
+            SimdFDCT::fdct(&mut simd);
 
             assert_eq!(simd.data, scalar.data);
         }

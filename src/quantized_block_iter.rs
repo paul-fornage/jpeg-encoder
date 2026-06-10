@@ -1,22 +1,22 @@
 use core::fmt::Formatter;
 use std::marker::PhantomData;
 use std::vec::Vec;
-use crate::quantization::QuantizationTable;
-
+use crate::quantization::{BlockQuantizer, QuantizationTable};
+use crate::fdct::FDCT;
 use crate::{ImageBuffer};
-use crate::encoder::{get_block, get_max_sampling_size, allocate_component_vecs, Component, AlignedBlock, Operations};
+use crate::encoder::{get_block, get_max_sampling_size, allocate_component_vecs, Component, AlignedBlock};
 
 
-pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
+pub fn encode_blocks_iter<'a, I: ImageBuffer, F: FDCT, Q: BlockQuantizer>(
     image: &I,
     q_tables: &'a [QuantizationTable; 2],
     components: &[Component],
-) -> heapless::Vec<QBlockComponentIter<'a, OP>, 4> {
+) -> heapless::Vec<QBlockComponentIter<'a, F, Q>, 4> {
     let (max_h_sampling, max_v_sampling) = get_max_sampling_size(components);
 
-    let converted_image = convert_full_image::<I, OP>(image, components, max_h_sampling, max_v_sampling);
+    let converted_image = convert_full_image::<I>(image, components, max_h_sampling, max_v_sampling);
     
-    let mut out: heapless::Vec<QBlockComponentIter<'a, OP>, 4> = heapless::Vec::new();
+    let mut out: heapless::Vec<QBlockComponentIter<'a, F, Q>, 4> = heapless::Vec::new();
 
     let ConvertedImage {
         rows: all_rows,
@@ -36,7 +36,7 @@ pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
         debug_assert!(num_cols > 0);
         debug_assert!(num_rows > 0);
 
-        out.push(QBlockComponentIter::<'a, OP>{
+        out.push(QBlockComponentIter::<'a, F, Q>{
             rows,
             q_table: &q_tables[component.quantization_table as usize],
             h_scale,
@@ -46,14 +46,15 @@ pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
             num_cols,
             num_rows,
             next_index: 0,
-            _op: PhantomData::<OP>::default(),
+            _fdct_impl: Default::default(),
+            _block_quantizer: Default::default(),
         }).unwrap();
 
     }
     out
 }
 
-pub struct QBlockComponentIter<'a, OP: Operations>{
+pub struct QBlockComponentIter<'a, F: FDCT, Q: BlockQuantizer>{
     rows: Vec<u8>,
     q_table: &'a QuantizationTable,
     h_scale: usize,
@@ -63,10 +64,11 @@ pub struct QBlockComponentIter<'a, OP: Operations>{
     num_cols: usize,
     num_rows: usize,
     next_index: usize,
-    _op: PhantomData<OP>,
+    _fdct_impl: PhantomData<F>,
+    _block_quantizer: PhantomData<Q>,
 }
 
-impl<'a, OP: Operations> QBlockComponentIter<'a, OP>{
+impl<'a, F: FDCT, Q: BlockQuantizer> QBlockComponentIter<'a, F, Q>{
     pub fn eval(&mut self, block_x: usize, block_y: usize) -> AlignedBlock {
         let mut block = get_block(
             &self.rows,
@@ -77,9 +79,9 @@ impl<'a, OP: Operations> QBlockComponentIter<'a, OP>{
             self.buffer_width,
         );
 
-        OP::fdct(&mut block);
+        F::fdct(&mut block);
         let mut q_block = AlignedBlock::default();
-        OP::quantize_block(
+        Q::quantize_block(
             &block,
             &mut q_block,
             &self.q_table,
@@ -91,7 +93,7 @@ impl<'a, OP: Operations> QBlockComponentIter<'a, OP>{
     pub fn new(rows: Vec<u8>, q_table: &'a QuantizationTable, h_scale: usize, v_scale: usize,
                buffer_width: usize, i: usize, num_cols: usize, num_rows: usize
     ) -> Self {
-        QBlockComponentIter::<'a, OP>{
+        QBlockComponentIter::<'a, F, Q>{
             rows,
             q_table,
             h_scale,
@@ -101,12 +103,13 @@ impl<'a, OP: Operations> QBlockComponentIter<'a, OP>{
             num_cols,
             num_rows,
             next_index: 0,
-            _op: Default::default(),
+            _fdct_impl: Default::default(),
+            _block_quantizer: Default::default(),
         }
     }
 }
 
-impl<'a, OP: Operations> core::fmt::Debug for QBlockComponentIter<'a, OP>{
+impl<'a, F: FDCT, Q: BlockQuantizer> core::fmt::Debug for QBlockComponentIter<'a, F, Q>{
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "QBlockComponentIter {{\
             h_scale: {},\
@@ -119,7 +122,7 @@ impl<'a, OP: Operations> core::fmt::Debug for QBlockComponentIter<'a, OP>{
     }
 }
 
-impl<OP: Operations> Iterator for QBlockComponentIter<'_, OP> {
+impl<'a, F: FDCT, Q: BlockQuantizer> Iterator for QBlockComponentIter<'a, F, Q> {
     type Item = AlignedBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -141,7 +144,7 @@ impl<OP: Operations> Iterator for QBlockComponentIter<'_, OP> {
     }
 }
 
-impl<'a, OP: Operations> ExactSizeIterator for QBlockComponentIter<'a, OP> {
+impl<'a, F: FDCT, Q: BlockQuantizer> ExactSizeIterator for QBlockComponentIter<'a, F, Q> {
     fn len(&self) -> usize {
         (self.num_cols * self.num_rows) - self.next_index
     }
@@ -155,7 +158,7 @@ pub struct ConvertedImage{
     num_chunk_rows: usize,
 }
 
-pub fn convert_full_image<I: ImageBuffer, OP: Operations>(
+pub fn convert_full_image<I: ImageBuffer>(
     image: &I,
     components: &[Component],
     max_h_sampling: usize,

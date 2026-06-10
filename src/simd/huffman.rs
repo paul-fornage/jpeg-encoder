@@ -4,9 +4,13 @@ use crate::writer::JfifWriter;
 use crate::{EncodingError, JfifWrite};
 use std::simd::cmp::SimdPartialEq;
 use std::simd::Simd;
-impl<W: JfifWrite> JfifWriter<W> {
-    pub fn write_ac_block_finish_first_n<const N: usize>(
-        &mut self,
+use crate::huffman::encoder::{DefaultHuffmanEncoder, HuffmanEncoder};
+
+pub struct SimdHuffmanEncoder;
+
+impl SimdHuffmanEncoder{
+    pub fn write_ac_block_finish_first_n<const N: usize, W: JfifWrite>(
+        writer: &mut JfifWriter<W>,
         block: &AlignedBlock,
         ac_table: &HuffmanTable,
     ) -> Result<u8, EncodingError> {
@@ -19,8 +23,7 @@ impl<W: JfifWrite> JfifWriter<W> {
             if value == 0 {
                 zero_run += 1;
             } else {
-                // std::eprintln!("\x1b[1m[new]: write_val_with_preceding_zeros({value}, {zero_run}, ac_table)\x1b[0m");
-                self.write_val_with_preceding_zeros(value, zero_run, ac_table)?;
+                DefaultHuffmanEncoder::write_val_with_preceding_zeros(writer, value, zero_run, ac_table)?;
                 zero_run = 0;
             }
         }
@@ -28,8 +31,8 @@ impl<W: JfifWrite> JfifWriter<W> {
     }
 
 
-    pub fn write_ac_block_simd(
-        &mut self,
+    pub fn write_ac_block_simd<W: JfifWrite>(
+        writer: &mut JfifWriter<W>,
         block: &AlignedBlock,
         start: usize,
         end: usize,
@@ -44,7 +47,7 @@ impl<W: JfifWrite> JfifWriter<W> {
         type SimdI16 = Simd<i16, SIMD_I16_WIDTH>;
 
         const INITIAL_LINEAR: usize = 16;
-        let mut zero_run = self.write_ac_block_finish_first_n::<INITIAL_LINEAR>(block, ac_table)?;
+        let mut zero_run = Self::write_ac_block_finish_first_n::<INITIAL_LINEAR, W>(writer, block, ac_table)?;
         const REMAINING_ELEMENTS: usize = BLOCK_SIZE - INITIAL_LINEAR;
         assert_eq!(
             REMAINING_ELEMENTS % SIMD_I16_WIDTH,
@@ -69,36 +72,39 @@ impl<W: JfifWrite> JfifWriter<W> {
             }
 
             while non_zeros_bitmask != 0 {
-                // std::eprintln!("start loop non_zeros_bitmask: {non_zeros_bitmask:016b}");
                 let leading_zeros = non_zeros_bitmask.leading_zeros() as u8;
-                // std::eprintln!("leading_zeros: {leading_zeros}");
                 zero_run += leading_zeros - checked_vals;
-                // std::eprintln!("zero_run: {zero_run}");
                 while zero_run >= 16 {
-                    // std::eprintln!("\x1b[1m[new]: huffman_encode(0xF0, ac_table)\x1b[0m");
-                    self.huffman_encode(0xF0, ac_table)?;
+                    DefaultHuffmanEncoder::huffman_encode(writer, 0xF0, ac_table)?;
                     zero_run -= 16;
                 }
                 let next_val = chunk[leading_zeros as usize];
-                // std::eprintln!("next_val: {next_val}");
-                // std::eprintln!("\x1b[1m[new]: write_val_with_preceding_zeros({next_val}, {zero_run}, ac_table)\x1b[0m");
-                self.write_val_with_preceding_zeros(next_val, zero_run, ac_table)?;
+                DefaultHuffmanEncoder::write_val_with_preceding_zeros(writer, next_val, zero_run, ac_table)?;
                 zero_run = 0;
                 checked_vals = leading_zeros + 1;
-                // std::eprintln!("checked_vals: {checked_vals}");
                 non_zeros_bitmask &= !((1 << 15) >> leading_zeros);
-                // std::eprintln!("leading_zeros: {leading_zeros}, new non_zeros_bitmask: {non_zeros_bitmask:016b}");
             }
             zero_run = 16 - checked_vals;
-            // std::eprintln!("exit non_zeros_bitmask: {:016b}", non_zeros_bitmask);
         }
 
         if zero_run > 0 {
-            // std::eprintln!("\x1b[1m[new]: huffman_encode(0x00, ac_table)\x1b[0m");
-            self.huffman_encode(0x00, ac_table)?;
+            DefaultHuffmanEncoder::huffman_encode(writer, 0x00, ac_table)?;
         }
 
         Ok(())
+    }
+}
+
+impl HuffmanEncoder for SimdHuffmanEncoder {
+    fn write_block<W: JfifWrite>(
+        writer: &mut JfifWriter<W>,
+        block: &AlignedBlock,
+        prev_dc: i16,
+        dc_table: &HuffmanTable,
+        ac_table: &HuffmanTable,
+    ) -> Result<(), EncodingError> {
+        DefaultHuffmanEncoder::write_dc(writer, block.data[0], prev_dc, dc_table)?;
+        Self::write_ac_block_simd(writer, block, 1, 64, ac_table)
     }
 }
 
@@ -106,12 +112,14 @@ impl<W: JfifWrite> JfifWriter<W> {
 mod tests {
     use super::*;
     use crate::huffman::HuffmanTable;
-    use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
+    use crate::huffman::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
     use crate::tests::create_test_img_rgb;
     use crate::writer::get_code;
-    use crate::RgbImage;
+    use crate::{RgbImage};
+    use crate::fdct::DefaultFDCT;
     use alloc::vec::Vec;
     use core::array;
+    use crate::quantization::DefaultBlockQuantizer;
 
     const START: usize = 1;
     const END: usize = 64;
@@ -173,7 +181,7 @@ mod tests {
             let mut writer = JfifWriter::new(local_writer);
 
             writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
-            writer.write_ac_block_linear(block, START, END, table)?;
+            DefaultHuffmanEncoder::write_ac_block(&mut writer, block, START, END, table)?;
             writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
             writer.flush_bit_buffer()?;
         }
@@ -187,7 +195,7 @@ mod tests {
             let mut writer = JfifWriter::new(local_writer);
 
             writer.write_bits(PREFIX_BITS.0, PREFIX_BITS.1)?;
-            writer.write_ac_block_simd(block, START, END, table)?;
+            SimdHuffmanEncoder::write_ac_block_simd(&mut writer, block, START, END, table)?;
             writer.write_bits(FLUSH_BITS.0, FLUSH_BITS.1)?;
             writer.flush_bit_buffer()?;
         }
@@ -199,7 +207,7 @@ mod tests {
 
         let (data, width, height) = create_test_img_rgb();
         let image_buffer = RgbImage(&data, width, height);
-        let sample_set = HuffmanSampleDataSet::from_image(&image_buffer);
+        let sample_set = HuffmanSampleDataSet::from_image::<_, DefaultFDCT, DefaultBlockQuantizer>(&image_buffer);
 
         for (idx, sample) in sample_set.samples.iter().enumerate() {
             let ac_table = &sample_set.huffman_tables[sample.ac_huffman_table as usize].1;
