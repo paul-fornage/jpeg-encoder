@@ -56,8 +56,7 @@ pub use fdct::{DefaultFDCT, FDCT};
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::SimdFDCT;
 
-#[cfg(any(feature = "benchmark", test))]
-pub use image_buffer::RgbImage;
+
 
 #[cfg(any(feature = "benchmark", test))]
 pub use encoder::AlignedBlock;
@@ -85,8 +84,10 @@ pub use huffman::encoder::{HuffmanEncoder, DefaultHuffmanEncoder};
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::SimdHuffmanEncoder;
 
-#[cfg(all(feature = "benchmark", feature = "simd"))]
-pub use simd::RgbImageSimd;
+#[cfg(any(feature = "benchmark", test))]
+pub use image_buffer::{RgbImage, RgbaImage};
+#[cfg(all(any(feature = "benchmark", test), feature = "simd"))]
+pub use simd::{RgbImageSimd, RgbaImageSimd};
 
 #[cfg(any(feature = "benchmark", test))]
 pub use huffman::huffman_sample_data::HuffmanSampleDataSet;
