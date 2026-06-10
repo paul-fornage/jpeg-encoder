@@ -56,7 +56,7 @@ pub use writer::{JfifWrite, PixelDensity, PixelDensityUnit};
 #[cfg(feature = "benchmark")]
 pub use fdct::fdct;
 
-#[cfg(feature = "benchmark")]
+#[cfg(any(feature = "benchmark", test))]
 pub use image_buffer::RgbImage;
 
 #[cfg(any(feature = "benchmark", test))]
@@ -98,7 +98,7 @@ pub use simd::quantize_block_simd;
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::RgbImageSimd;
 
-#[cfg(all(feature = "benchmark", feature = "simd"))]
+#[cfg(all(any(feature = "benchmark", test), feature = "simd"))]
 pub use simd::SimdOperations;
 
 #[cfg(test)]

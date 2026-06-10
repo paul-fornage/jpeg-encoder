@@ -657,7 +657,7 @@ impl<W: JfifWrite> Encoder<W> {
         // contains sets of 8 rows broken down by component.
         // when subsampling factor for a components is greater than 1,
         //  this actually contains the next 8*subsampling
-        let mut row: [Vec<_>; 4] = init_rows(&self.components, buffer_size);
+        let mut row: [Vec<u8>; 4] = allocate_component_vecs(&self.components, buffer_size);
 
         let mut prev_dc = [0i16; 4];
 
@@ -917,8 +917,88 @@ impl<W: JfifWrite> Encoder<W> {
         Ok(())
     }
 
-
     pub fn encode_blocks<I: ImageBuffer, OP: Operations>(
+        &mut self,
+        image: &I,
+        q_tables: &[QuantizationTable; 2],
+    ) -> [Vec<AlignedBlock>; 4] {
+        let width = image.width();
+        let height = image.height();
+        let (max_h_sampling, max_v_sampling) = get_max_sampling_size(&self.components);
+
+        let num_cols = usize::from(width).div_ceil(8 * max_h_sampling) * max_h_sampling;
+        let num_rows = usize::from(height).div_ceil(8 * max_v_sampling) * max_v_sampling;
+
+        debug_assert!(num_cols > 0);
+        debug_assert!(num_rows > 0);
+
+        let buffer_width = num_cols * 8;
+        let buffer_size = num_cols * num_rows * 64;
+
+        let mut row: [Vec<u8>; 4] = allocate_component_vecs(&self.components, buffer_size);
+
+        for y in 0..num_rows * 8 {
+            let y = (y.min(usize::from(height) - 1)) as u16;
+
+            image.fill_buffers(y, &mut row);
+
+            for _ in usize::from(width)..num_cols * 8 {
+                for channel in &mut row {
+                    if !channel.is_empty() {
+                        channel.push(channel[channel.len() - 1]);
+                    }
+                }
+            }
+        }
+
+        let num_cols = usize::from(width).div_ceil(8);
+        let num_rows = usize::from(height).div_ceil(8);
+
+        debug_assert!(num_cols > 0);
+        debug_assert!(num_rows > 0);
+
+        let mut blocks: [Vec<AlignedBlock>; 4] = allocate_component_vecs(&self.components, buffer_size / 64);
+
+        for (i, component) in self.components.iter().enumerate() {
+            let h_scale = max_h_sampling / component.horizontal_sampling_factor as usize;
+            let v_scale = max_v_sampling / component.vertical_sampling_factor as usize;
+
+            let cols = num_cols.div_ceil(h_scale);
+            let rows = num_rows.div_ceil(v_scale);
+
+            debug_assert!(cols > 0);
+            debug_assert!(rows > 0);
+
+            for block_y in 0..rows {
+                for block_x in 0..cols {
+                    let mut block = get_block(
+                        &row[i],
+                        block_x * 8 * h_scale,
+                        block_y * 8 * v_scale,
+                        h_scale,
+                        v_scale,
+                        buffer_width,
+                    );
+
+                    OP::fdct(&mut block);
+
+                    let mut q_block = AlignedBlock::default();
+
+                    OP::quantize_block(
+                        &block,
+                        &mut q_block,
+                        &q_tables[component.quantization_table as usize],
+                    );
+
+                    blocks[i].push(q_block);
+                }
+            }
+        }
+        blocks
+    }
+
+
+    pub fn encode_blocks_iter<I: ImageBuffer, OP: Operations>(
         &mut self,
         image: &I,
         q_tables: &[QuantizationTable; 2],
@@ -1083,7 +1163,7 @@ pub fn get_max_sampling_size(components: &[Component]) -> (usize, usize) {
     (usize::from(max_h_sampling), usize::from(max_v_sampling))
 }
 
-pub(crate) fn init_rows(components: &[Component], buffer_size: usize) -> [Vec<u8>; 4] {
+pub(crate) fn allocate_component_vecs<T>(components: &[Component], buffer_size: usize) -> [Vec<T>; 4] {
     // To simplify the code and to give the compiler more infos to optimize stuff we always initialize 4 components
     // Resource overhead should be minimal because an empty Vec doesn't allocate
 
@@ -1344,27 +1424,22 @@ mod tests {
         ];
 
         for sampling_factor in [SamplingFactor::F_1_1, SamplingFactor::F_2_2] {
-            let mut encoder = Encoder::new(vec![], 90);
-            encoder.set_sampling_factor(sampling_factor);
-            encoder.init_components(super::JpegColorType::Ycbcr);
+            let mut encoder_old = Encoder::new(vec![], 90);
+            encoder_old.set_sampling_factor(sampling_factor);
+            encoder_old.init_components(super::JpegColorType::Ycbcr);
 
-            let old_blocks = encoder.encode_blocks::<_, super::DefaultOperations>(&image, &q_tables);
-            let mut iter_blocks = crate::quantized_block_iter::encode_blocks::<_, super::DefaultOperations>(
-                &image,
-                &q_tables,
-                &encoder.components,
-            );
-            let mut new_blocks: [Vec<super::AlignedBlock>; 4] =
-                core::array::from_fn(|_| Vec::new());
+            let old_blocks = encoder_old.encode_blocks::<_, super::DefaultOperations>(&image, &q_tables);
 
-            for (component_index, component_iter) in iter_blocks.iter_mut().enumerate() {
-                new_blocks[component_index].extend(component_iter.by_ref());
-            }
+            let mut encoder_new = Encoder::new(vec![], 90);
+            encoder_new.set_sampling_factor(sampling_factor);
+            encoder_new.init_components(super::JpegColorType::Ycbcr);
 
-            for (component_index, (old_component, new_component)) in old_blocks
+            let iter_blocks = encoder_new.encode_blocks_iter::<_, super::DefaultOperations>(&image, &q_tables);
+
+            old_blocks
                 .iter()
-                .zip(new_blocks.iter())
-                .enumerate()
+                .zip(iter_blocks.iter())
+                .enumerate().for_each(|(component_index, (old_component, new_component))|
             {
                 assert_eq!(
                     old_component.len(),
@@ -1386,7 +1461,7 @@ mod tests {
                         block_index
                     );
                 }
-            }
+            })
         }
     }
 

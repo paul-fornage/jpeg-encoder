@@ -4,7 +4,7 @@ use std::vec::Vec;
 use crate::quantization::QuantizationTable;
 
 use crate::{ImageBuffer};
-use crate::encoder::{get_block, get_max_sampling_size, init_rows, Component, AlignedBlock, Operations};
+use crate::encoder::{get_block, get_max_sampling_size, allocate_component_vecs, Component, AlignedBlock, Operations};
 
 
 pub fn encode_blocks<'a, I: ImageBuffer, OP: Operations>(
@@ -174,7 +174,7 @@ pub fn convert_full_image<I: ImageBuffer, OP: Operations>(
     let buffer_width = max_num_chunk_cols * 8;
     let buffer_size = max_num_chunk_cols * max_num_chunk_rows * 64;
 
-    let mut rows: [Vec<u8>; 4] = init_rows(components, buffer_size);
+    let mut rows: [Vec<u8>; 4] = allocate_component_vecs(components, buffer_size);
 
     for y in 0..max_num_chunk_rows * 8 {
         let y = (y.min(usize::from(pixel_height) - 1)) as u16;

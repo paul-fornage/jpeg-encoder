@@ -1,9 +1,9 @@
 use crate::encoder::AlignedBlock;
 use crate::huffman::HuffmanTable;
-use crate::writer::{JfifWriter};
+use crate::writer::JfifWriter;
 use crate::{EncodingError, JfifWrite};
-use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
+use std::simd::Simd;
 impl<W: JfifWrite> JfifWriter<W> {
     pub fn write_ac_block_finish_first_n<const N: usize>(
         &mut self,
@@ -106,12 +106,12 @@ impl<W: JfifWrite> JfifWriter<W> {
 mod tests {
     use super::*;
     use crate::huffman::HuffmanTable;
-    use alloc::vec::Vec;
-    use core::array;
-    use crate::{ColorType, Encoder, RgbImage, SamplingFactor};
     use crate::huffman_sample_data::{HuffmanSampleData, HuffmanSampleDataSet};
     use crate::tests::create_test_img_rgb;
     use crate::writer::get_code;
+    use crate::RgbImage;
+    use alloc::vec::Vec;
+    use core::array;
 
     const START: usize = 1;
     const END: usize = 64;
