@@ -1,9 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jpeg_encoder::{AlignedBlock, DefaultOperations, Operations, QuantizationTable, QuantizationTableType};
+use jpeg_encoder::{AlignedBlock, BlockQuantizer, DefaultBlockQuantizer, QuantizationTable, QuantizationTableType};
 use std::time::Duration;
 
 #[cfg(feature = "simd")]
-use jpeg_encoder::SimdOperations;
+use jpeg_encoder::SimdBlockQuantizer;
 
 struct SimpleRng {
     state: u64,
@@ -36,7 +36,7 @@ fn create_blocks(count: usize) -> Vec<AlignedBlock> {
 }
 
 #[inline(always)]
-fn quantize_all_scalar(
+fn quantize_all<Q: BlockQuantizer>(
     inputs: &[AlignedBlock],
     outputs: &mut [AlignedBlock],
     luma: &QuantizationTable,
@@ -44,21 +44,7 @@ fn quantize_all_scalar(
 ) {
     for (i, (input, output)) in inputs.iter().zip(outputs.iter_mut()).enumerate() {
         let table = if i & 1 == 0 { luma } else { chroma };
-        <DefaultOperations as Operations>::quantize_block(input, output, table);
-    }
-}
-
-#[cfg(feature = "simd")]
-#[inline(always)]
-fn quantize_all_simd(
-    inputs: &[AlignedBlock],
-    outputs: &mut [AlignedBlock],
-    luma: &QuantizationTable,
-    chroma: &QuantizationTable,
-) {
-    for (i, (input, output)) in inputs.iter().zip(outputs.iter_mut()).enumerate() {
-        let table = if i & 1 == 0 { luma } else { chroma };
-        <SimdOperations as Operations>::quantize_block(input, output, table);
+        Q::quantize_block(input, output, table);
     }
 }
 
@@ -75,7 +61,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("quantize scalar", |b| {
         b.iter(|| {
-            quantize_all_scalar(
+            quantize_all::<DefaultBlockQuantizer>(
                 black_box(&inputs),
                 black_box(&mut outputs),
                 black_box(&luma),
@@ -88,7 +74,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(feature = "simd")]
     group.bench_function("quantize simd", |b| {
         b.iter(|| {
-            quantize_all_simd(
+            quantize_all::<SimdBlockQuantizer>(
                 black_box(&inputs),
                 black_box(&mut outputs),
                 black_box(&luma),

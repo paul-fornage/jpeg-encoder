@@ -2,8 +2,8 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use imgref::ImgVec;
 
 #[cfg(feature = "simd")]
-use jpeg_encoder::{get_block_simd, RgbImageSimd, SimdOperations};
-use jpeg_encoder::{get_block_linear, DefaultOperations, ImageBuffer, QuantizationTable, QuantizationTableType, RgbImage};
+use jpeg_encoder::{get_block_simd};
+use jpeg_encoder::{get_block_linear, DefaultBlockQuantizer, DefaultFDCT, ImageBuffer, QuantizationTable, QuantizationTableType, RgbImage};
 
 
 use std::time::Duration;
@@ -39,17 +39,16 @@ fn bench_misc(c: &mut Criterion) {
 
     group.warm_up_time(Duration::from_secs(8));
     group.measurement_time(Duration::from_secs(16));
-
-    #[cfg(feature = "simd")]
-    group.bench_function("encode_blocks_simd", |b| {
+    
+    group.bench_function("encode_blocks_iter", |b| {
         b.iter(|| {
-            encoder.encode_blocks::<_, SimdOperations>(&image_buffer, &q_tables);
+            encoder.encode_blocks_iter::<_, DefaultFDCT, DefaultBlockQuantizer>(&image_buffer, &q_tables);
         });
     });
 
     group.bench_function("encode_blocks_linear", |b| {
         b.iter(|| {
-            encoder.encode_blocks::<_, DefaultOperations>(&image_buffer, &q_tables);
+            encoder.encode_blocks::<_, DefaultFDCT, DefaultBlockQuantizer>(&image_buffer, &q_tables);
         });
     });
 

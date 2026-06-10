@@ -1,11 +1,10 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jpeg_encoder::{AlignedBlock, DefaultOperations, EncodingError, JfifWrite, Operations, QuantizationTable, QuantizationTableType, SamplingFactor};
-use std::time::Duration;
-use image::codecs::jpeg;
+use criterion::{criterion_group, criterion_main, Criterion};
 use imgref::ImgVec;
-use rgb::{Rgb, RGB8};
 #[cfg(feature = "simd")]
-use jpeg_encoder::SimdOperations;
+use jpeg_encoder;
+use jpeg_encoder::{EncodingError, JfifWrite, SamplingFactor};
+use rgb::RGB8;
+use std::time::Duration;
 
 
 pub fn encode_jpeg(img: &ImgVec<RGB8>, quality: u8, sampling: SamplingFactor, progressive: bool) -> Result<Vec<u8>, EncodingError> {

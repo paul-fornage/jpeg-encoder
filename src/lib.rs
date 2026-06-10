@@ -68,11 +68,8 @@ pub use encoder::get_block_simd;
 #[cfg(feature = "benchmark")]
 pub use encoder::get_block_linear;
 
-
-
 #[cfg(any(feature = "benchmark", test))]
 pub use encoder::{init_components, Component};
-
 
 #[cfg(feature = "benchmark")]
 pub use writer::JfifWriter;
@@ -83,11 +80,21 @@ pub use quantization::QuantizationTable;
 #[cfg(feature = "benchmark")]
 pub use huffman::HuffmanTable;
 
-
+#[cfg(feature = "benchmark")]
+pub use huffman::encoder::{HuffmanEncoder, DefaultHuffmanEncoder};
+#[cfg(all(feature = "benchmark", feature = "simd"))]
+pub use simd::SimdHuffmanEncoder;
 
 #[cfg(all(feature = "benchmark", feature = "simd"))]
 pub use simd::RgbImageSimd;
 
+#[cfg(any(feature = "benchmark", test))]
+pub use huffman::huffman_sample_data::HuffmanSampleDataSet;
+
+#[cfg(any(feature = "benchmark", test))]
+pub use quantization::{BlockQuantizer, DefaultBlockQuantizer};
+#[cfg(all(any(feature = "benchmark", test), feature = "simd"))]
+pub use simd::{SimdBlockQuantizer};
 
 
 #[cfg(test)]

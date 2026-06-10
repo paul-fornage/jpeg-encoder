@@ -1,6 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use jpeg_encoder::fdct;
+use jpeg_encoder::{DefaultFDCT, FDCT};
+#[cfg(feature = "simd")]
+use jpeg_encoder::{SimdFDCT};
+
 use std::time::Duration;
 
 const INPUT1: [i16; 64] = [
@@ -18,7 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("default fdct", |b| {
         b.iter(|| {
             let mut input = jpeg_encoder::AlignedBlock::new(INPUT1);
-            fdct(black_box(&mut input));
+            DefaultFDCT::fdct(black_box(&mut input));
             black_box(&input);
         })
     });
@@ -26,10 +29,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(feature = "simd")]
     group.bench_function("fdct simd", |b| {
         b.iter(|| {
-            use jpeg_encoder::fdct_simd;
-
             let mut input = jpeg_encoder::AlignedBlock::new(INPUT1);
-            fdct_simd(black_box(&mut input));
+            SimdFDCT::fdct(black_box(&mut input));
             black_box(&input);
         })
     });
