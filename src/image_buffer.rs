@@ -314,6 +314,25 @@ impl<'a> ImageBuffer for YcckImage<'a> {
     }
 }
 
+
+pub fn fill_buffer_padded<I: ImageBuffer>(image: &I, x_total_padded: usize, y_total_padded: usize, out_buf: &mut [Vec<u8>; 4]){
+    let height = image.height();
+    let width = image.width();
+    for y in 0..y_total_padded {
+        let y = (y.min(usize::from(height) - 1)) as u16;
+
+        image.fill_buffers(y, out_buf);
+
+        for _ in usize::from(width)..x_total_padded {
+            out_buf.iter_mut().for_each(|channel| {
+                if !channel.is_empty() {
+                    channel.push(channel[channel.len() - 1]);
+                }
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::rgb_to_ycbcr;

@@ -85,7 +85,7 @@ pub use huffman::encoder::{HuffmanEncoder, DefaultHuffmanEncoder};
 pub use simd::SimdHuffmanEncoder;
 
 #[cfg(any(feature = "benchmark", test))]
-pub use image_buffer::{RgbImage, RgbaImage};
+pub use image_buffer::{RgbImage, RgbaImage, fill_buffer_padded};
 #[cfg(all(any(feature = "benchmark", test), feature = "simd"))]
 pub use simd::{RgbImageSimd, RgbaImageSimd};
 

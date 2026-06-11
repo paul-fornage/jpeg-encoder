@@ -954,19 +954,7 @@ impl<W: JfifWrite> Encoder<W> {
 
         let mut row: [Vec<u8>; 4] = allocate_component_vecs(&self.components, buffer_size);
 
-        for y in 0..num_rows * 8 {
-            let y = (y.min(usize::from(height) - 1)) as u16;
-
-            image.fill_buffers(y, &mut row);
-
-            for _ in usize::from(width)..num_cols * 8 {
-                for channel in &mut row {
-                    if !channel.is_empty() {
-                        channel.push(channel[channel.len() - 1]);
-                    }
-                }
-            }
-        }
+        fill_buffer_padded(image, num_cols * 8, num_rows * 8, &mut row);
 
         let num_cols = usize::from(width).div_ceil(8);
         let num_rows = usize::from(height).div_ceil(8);

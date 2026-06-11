@@ -3,7 +3,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 #[cfg(feature = "simd")]
 use jpeg_encoder::{RgbImageSimd, RgbaImageSimd};
 
-use jpeg_encoder::{ImageBuffer, RgbImage, RgbaImage};
+use jpeg_encoder::{fill_buffer_padded, ImageBuffer, RgbImage, RgbaImage};
 use std::time::Duration;
 
 
@@ -29,10 +29,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(20));
     group.warm_up_time(Duration::from_secs(5));
 
+    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
     group.bench_function("default rgb to ycbcr", |b| {
-        let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
-
-        b.iter(|| {
+                b.iter(|| {
             for y in 0..height {
                 image_buffer.fill_buffers(y, &mut res);
             }
@@ -44,9 +43,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     #[cfg(feature = "simd")]
+    let image_buffer = RgbImageSimd(img_rgb8.as_raw(), width, height);
+    #[cfg(feature = "simd")]
     group.bench_function("simd rgb to ycbcr", |b| {
-        let image_buffer = RgbImageSimd(img_rgb8.as_raw(), width, height);
-
         b.iter(|| {
             for y in 0..height {
                 image_buffer.fill_buffers(y, &mut res);
@@ -58,9 +57,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
     });
 
+    let image_buffer = RgbaImage(img_rgba8.as_raw(), width, height);
     group.bench_function("default rgba to ycbcr", |b| {
-        let image_buffer = RgbaImage(img_rgba8.as_raw(), width, height);
-
         b.iter(|| {
             for y in 0..height {
                 image_buffer.fill_buffers(y, &mut res);
@@ -74,9 +72,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     #[cfg(feature = "simd")]
+    let image_buffer = RgbaImageSimd(img_rgba8.as_raw(), width, height);
+    #[cfg(feature = "simd")]
     group.bench_function("simd rgba to ycbcr", |b| {
-        let image_buffer = RgbaImageSimd(img_rgba8.as_raw(), width, height);
-
         b.iter(|| {
             for y in 0..height {
                 image_buffer.fill_buffers(y, &mut res);
@@ -87,6 +85,92 @@ fn criterion_benchmark(c: &mut Criterion) {
             res[2].clear();
             res[3].clear();
         })
+    });
+
+    fn get_padded_dims(x: u16, y: u16, rounding: u16) -> (usize, usize) {
+        (x.next_multiple_of(rounding) as usize, y.next_multiple_of(rounding) as usize)
+    }
+    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    let (padded_x, padded_y) = get_padded_dims(width, height, 8);
+    group.bench_function("default rgb to ycbcr padded 8", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+        });
+    });
+
+    #[cfg(feature = "simd")]
+    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    #[cfg(feature = "simd")]
+    let (padded_x, padded_y) = get_padded_dims(width, height, 8);
+    #[cfg(feature = "simd")]
+    group.bench_function("simd rgb to ycbcr padded 8", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+        });
+    });
+
+    let image_buffer = RgbaImage(img_rgba8.as_raw(), width, height);
+    let (padded_x, padded_y) = get_padded_dims(width, height, 8);
+    group.bench_function("default rgba to ycbcr padded 8", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+            res[3].clear();
+        });
+    });
+
+    #[cfg(feature = "simd")]
+    let image_buffer = RgbaImage(img_rgba8.as_raw(), width, height);
+    #[cfg(feature = "simd")]
+    let (padded_x, padded_y) = get_padded_dims(width, height, 8);
+    #[cfg(feature = "simd")]
+    group.bench_function("simd rgba to ycbcr padded 8", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+            res[3].clear();
+        });
+    });
+
+    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    let (padded_x, padded_y) = get_padded_dims(width, height, 16);
+    group.bench_function("default rgb to ycbcr padded 16", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+        });
+    });
+
+    #[cfg(feature = "simd")]
+    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    #[cfg(feature = "simd")]
+    let (padded_x, padded_y) = get_padded_dims(width, height, 16);
+    #[cfg(feature = "simd")]
+    group.bench_function("simd rgb to ycbcr padded 16", |b| {
+        b.iter(|| {
+            fill_buffer_padded(&image_buffer, padded_x, padded_y, &mut res);
+            black_box(&res);
+            res[0].clear();
+            res[1].clear();
+            res[2].clear();
+        });
     });
 
     group.finish();
