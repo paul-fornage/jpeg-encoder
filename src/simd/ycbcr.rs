@@ -5,10 +5,10 @@ use std::simd::{Simd, simd_swizzle};
 use crate::{ImageBuffer, JpegColorType, rgb_to_ycbcr};
 
 const SIMD_BIT_WIDTH: usize = 256;
-const SIMD_I32_WIDTH: usize = SIMD_BIT_WIDTH / 32;
+const SIMD_I32_LANES: usize = SIMD_BIT_WIDTH / 32;
 
-pub type SimdI32 = Simd<i32, SIMD_I32_WIDTH>;
-const CONVERT_RGB_BYTE_WIDTH: usize = SIMD_I32_WIDTH;
+pub type SimdI32 = Simd<i32, SIMD_I32_LANES>;
+const CONVERT_RGB_BYTE_WIDTH: usize = SIMD_I32_LANES;
 pub type SimdColor = Simd<u8, CONVERT_RGB_BYTE_WIDTH>;
 
 pub struct SimdRgb {
@@ -36,16 +36,16 @@ const fn gen_swizzler<const N: usize>(chunk_idx: usize, chunk_size: usize) -> [u
     }
     out
 }
-const SWIZZLER_0_3: [usize; SIMD_I32_WIDTH] = gen_swizzler(0, 3);
-const SWIZZLER_1_3: [usize; SIMD_I32_WIDTH] = gen_swizzler(1, 3);
-const SWIZZLER_2_3: [usize; SIMD_I32_WIDTH] = gen_swizzler(2, 3);
-const SWIZZLER_0_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(0, 4);
-const SWIZZLER_1_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(1, 4);
-const SWIZZLER_2_4: [usize; SIMD_I32_WIDTH] = gen_swizzler(2, 4);
+const SWIZZLER_0_3: [usize; SIMD_I32_LANES] = gen_swizzler(0, 3);
+const SWIZZLER_1_3: [usize; SIMD_I32_LANES] = gen_swizzler(1, 3);
+const SWIZZLER_2_3: [usize; SIMD_I32_LANES] = gen_swizzler(2, 3);
+const SWIZZLER_0_4: [usize; SIMD_I32_LANES] = gen_swizzler(0, 4);
+const SWIZZLER_1_4: [usize; SIMD_I32_LANES] = gen_swizzler(1, 4);
+const SWIZZLER_2_4: [usize; SIMD_I32_LANES] = gen_swizzler(2, 4);
 
 #[inline(always)]
 fn load_rgb(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, { 3 * SIMD_I32_WIDTH }>::from_slice(data);
+    let vals = Simd::<u8, { 3 * SIMD_I32_LANES }>::from_slice(data);
     SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_0_3),
         g: simd_swizzle!(vals, SWIZZLER_1_3),
@@ -55,7 +55,7 @@ fn load_rgb(data: &[u8]) -> SimdRgb {
 
 #[inline(always)]
 fn load_bgr(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, { 3 * SIMD_I32_WIDTH }>::from_slice(data);
+    let vals = Simd::<u8, { 3 * SIMD_I32_LANES }>::from_slice(data);
     SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_2_3),
         g: simd_swizzle!(vals, SWIZZLER_1_3),
@@ -64,7 +64,7 @@ fn load_bgr(data: &[u8]) -> SimdRgb {
 }
 #[inline(always)]
 fn load_rgba(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, { 4 * SIMD_I32_WIDTH }>::from_slice(data);
+    let vals = Simd::<u8, { 4 * SIMD_I32_LANES }>::from_slice(data);
     SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_0_4),
         g: simd_swizzle!(vals, SWIZZLER_1_4),
@@ -74,7 +74,7 @@ fn load_rgba(data: &[u8]) -> SimdRgb {
 
 #[inline(always)]
 fn load_bgra(data: &[u8]) -> SimdRgb {
-    let vals = Simd::<u8, { 4 * SIMD_I32_WIDTH }>::from_slice(data);
+    let vals = Simd::<u8, { 4 * SIMD_I32_LANES }>::from_slice(data);
     SimdRgb {
         r: simd_swizzle!(vals, SWIZZLER_2_4),
         g: simd_swizzle!(vals, SWIZZLER_1_4),
@@ -84,7 +84,7 @@ fn load_bgra(data: &[u8]) -> SimdRgb {
 
 #[inline(always)]
 fn convert_rgb(rgb: SimdRgb) -> SimdYCbCr {
-    const ROUNDING: SimdI32 = SimdI32::from_array([0x7FFF; SIMD_I32_WIDTH]);
+    const ROUNDING: SimdI32 = SimdI32::splat(0x7FFF);
     let r = rgb.r.cast::<i32>();
     let g = rgb.g.cast::<i32>();
     let b = rgb.b.cast::<i32>();
@@ -123,7 +123,13 @@ fn fill_buffers_simd<const NUM_COLORS: usize, const R: usize, const G: usize, co
 
     let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
 
-    let chunks = line.chunks_exact(NUM_COLORS * SIMD_I32_WIDTH);
+    let input_pixels = data.len() / NUM_COLORS;
+
+    y_buffer.reserve(input_pixels);
+    cb_buffer.reserve(input_pixels);
+    cr_buffer.reserve(input_pixels);
+
+    let chunks = line.chunks_exact(NUM_COLORS * SIMD_I32_LANES);
     let remainder = chunks.remainder();
 
     for chunk in chunks {
@@ -135,7 +141,10 @@ fn fill_buffers_simd<const NUM_COLORS: usize, const R: usize, const G: usize, co
         extend_from_simd(cr_buffer, cr);
     }
 
-    for pixel in remainder.chunks_exact(NUM_COLORS) {
+    let pixels = remainder.chunks_exact(NUM_COLORS);
+    debug_assert!(pixels.remainder().is_empty());
+
+    for pixel in pixels {
         let (y, cb, cr) = rgb_to_ycbcr(pixel[R], pixel[G], pixel[B]);
 
         y_buffer.push(y);
