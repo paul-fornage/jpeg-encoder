@@ -123,12 +123,6 @@ fn fill_buffers_simd<const NUM_COLORS: usize, const R: usize, const G: usize, co
 
     let [y_buffer, cb_buffer, cr_buffer, _] = buffers;
 
-    let input_pixels = data.len() / NUM_COLORS;
-
-    y_buffer.reserve(input_pixels);
-    cb_buffer.reserve(input_pixels);
-    cr_buffer.reserve(input_pixels);
-
     let chunks = line.chunks_exact(NUM_COLORS * SIMD_I32_LANES);
     let remainder = chunks.remainder();
 

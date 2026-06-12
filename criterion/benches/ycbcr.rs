@@ -103,7 +103,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     #[cfg(feature = "simd")]
-    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    let image_buffer = RgbImageSimd(img_rgb8.as_raw(), width, height);
     #[cfg(feature = "simd")]
     let (padded_x, padded_y) = get_padded_dims(width, height, 8);
     #[cfg(feature = "simd")]
@@ -131,7 +131,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     #[cfg(feature = "simd")]
-    let image_buffer = RgbaImage(img_rgba8.as_raw(), width, height);
+    let image_buffer = RgbaImageSimd(img_rgba8.as_raw(), width, height);
     #[cfg(feature = "simd")]
     let (padded_x, padded_y) = get_padded_dims(width, height, 8);
     #[cfg(feature = "simd")]
@@ -159,7 +159,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     #[cfg(feature = "simd")]
-    let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
+    let image_buffer = RgbImageSimd(img_rgb8.as_raw(), width, height);
     #[cfg(feature = "simd")]
     let (padded_x, padded_y) = get_padded_dims(width, height, 16);
     #[cfg(feature = "simd")]
@@ -178,3 +178,53 @@ fn criterion_benchmark(c: &mut Criterion) {
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
+
+
+/*
+Dev machine (AVX2)
+ycbcr/default rgb to ycbcr
+                        time:   [607.44 µs 612.37 µs 618.48 µs]
+ycbcr/simd rgb to ycbcr
+                        time:   [758.66 µs 768.65 µs 779.46 µs]
+ycbcr/default rgba to ycbcr
+                        time:   [655.43 µs 666.44 µs 678.60 µs]
+ycbcr/simd rgba to ycbcr
+                        time:   [530.95 µs 536.73 µs 544.57 µs]
+ycbcr/default rgb to ycbcr padded 8
+                        time:   [624.41 µs 632.94 µs 642.08 µs]
+ycbcr/simd rgb to ycbcr padded 8
+                        time:   [742.15 µs 745.52 µs 749.85 µs]
+ycbcr/default rgba to ycbcr padded 8
+                        time:   [638.37 µs 641.13 µs 644.14 µs]
+ycbcr/simd rgba to ycbcr padded 8
+                        time:   [535.26 µs 536.54 µs 537.90 µs]
+ycbcr/default rgb to ycbcr padded 16
+                        time:   [630.29 µs 636.80 µs 643.40 µs]
+ycbcr/simd rgb to ycbcr padded 16
+                        time:   [740.93 µs 741.71 µs 742.59 µs]
+
+RPI 5:
+
+ycbcr/default rgb to ycbcr
+                        time:   [1.0033 ms 1.0061 ms 1.0091 ms]
+ycbcr/simd rgb to ycbcr
+                        time:   [959.78 µs 961.46 µs 963.22 µs]
+ycbcr/default rgba to ycbcr
+                        time:   [1.4812 ms 1.4847 ms 1.4884 ms]
+ycbcr/simd rgba to ycbcr
+                        time:   [1.0122 ms 1.0150 ms 1.0182 ms]
+ycbcr/default rgb to ycbcr padded 8
+                        time:   [1.1016 ms 1.1040 ms 1.1069 ms]
+ycbcr/simd rgb to ycbcr padded 8
+                        time:   [1.0477 ms 1.0502 ms 1.0532 ms]
+ycbcr/default rgba to ycbcr padded 8
+                        time:   [1.4960 ms 1.4992 ms 1.5027 ms]
+ycbcr/simd rgba to ycbcr padded 8
+                        time:   [1.1655 ms 1.1693 ms 1.1734 ms]
+ycbcr/default rgb to ycbcr padded 16
+                        time:   [1.1094 ms 1.1115 ms 1.1140 ms]
+ycbcr/simd rgb to ycbcr padded 16
+                        time:   [1.0601 ms 1.0627 ms 1.0658 ms]
+
+
+ */
