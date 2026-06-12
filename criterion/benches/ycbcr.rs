@@ -26,8 +26,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut res = [res1, res2, res3, res4];
 
     let mut group = c.benchmark_group("ycbcr");
-    group.measurement_time(Duration::from_secs(20));
-    group.warm_up_time(Duration::from_secs(5));
+    group.measurement_time(Duration::from_secs(5));
+    group.warm_up_time(Duration::from_secs(3));
 
     let image_buffer = RgbImage(img_rgb8.as_raw(), width, height);
     group.bench_function("default rgb to ycbcr", |b| {
