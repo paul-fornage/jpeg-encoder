@@ -18,10 +18,9 @@ std = []
 
 
 # DO NOT USE THIS IN PRODUCTION. Expose several internal functions for benchmark purposes.
-benchmark = ["serde"]
+benchmark = []
 
 [dependencies]
-serde = {version = "1.0.228", features = ["derive"], optional = true}
 heapless = "0.9.3"
 
 [dev-dependencies]
